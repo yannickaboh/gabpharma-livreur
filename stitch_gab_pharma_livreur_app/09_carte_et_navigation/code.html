@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Gab'Pharma Livreur - Navigation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#d7e6de",
+                        "secondary-container": "#a8f4b9",
+                        "surface-dim": "#ceded5",
+                        "secondary-fixed-dim": "#8cd79f",
+                        "secondary": "#206b3d",
+                        "surface-bright": "#eefdf4",
+                        "surface-container-high": "#dcece3",
+                        "on-surface-variant": "#3f4940",
+                        "surface-tint": "#076d38",
+                        "on-primary-container": "#8fe7a5",
+                        "primary-fixed-dim": "#81d998",
+                        "on-secondary-fixed": "#00210d",
+                        "secondary-fixed": "#a8f4b9",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#005caa",
+                        "surface-container-low": "#e8f7ef",
+                        "outline": "#6f7a6f",
+                        "on-secondary-container": "#287243",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed": "#00210c",
+                        "primary-fixed": "#9df6b2",
+                        "inverse-surface": "#26332e",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed": "#001c3a",
+                        "tertiary-fixed-dim": "#a5c8ff",
+                        "inverse-primary": "#81d998",
+                        "inverse-on-surface": "#e5f4ec",
+                        "background": "#eefdf4",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-container": "#bdd5ff",
+                        "surface": "#eefdf4",
+                        "on-primary-fixed-variant": "#005228",
+                        "primary": "#004f26",
+                        "on-primary-container": "#006a35",
+                        "on-surface": "#111e19",
+                        "on-background": "#111e19",
+                        "surface-container-highest": "#d7e6de",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#004481",
+                        "primary-container": "#006a35",
+                        "tertiary-fixed": "#d4e3ff",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#004786",
+                        "outline-variant": "#bec9bd",
+                        "surface-container": "#e2f1e9",
+                        "on-secondary-fixed-variant": "#005229",
+                        "on-error": "#ffffff",
+                        "on-secondary": "#ffffff"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "label-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "price-display": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+        }
+        /* Custom map markers and lines for professional look */
+        .map-line {
+            stroke-dasharray: 8;
+            animation: dash 30s linear infinite;
+        }
+        @keyframes dash {
+            to { stroke-dashoffset: -1000; }
+        }
+        .pulse {
+            animation: pulse-animation 2s infinite;
+        }
+        @keyframes pulse-animation {
+            0% { transform: scale(0.95); opacity: 0.7; }
+            70% { transform: scale(1.1); opacity: 0.3; }
+            100% { transform: scale(0.95); opacity: 0.7; }
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body-md text-on-surface antialiased overflow-hidden h-screen flex flex-col">
+<!-- Top Navigation Anchor (Shared Component Mapping) -->
+<header class="bg-surface shadow-sm z-50 fixed top-0 left-0 w-full">
+<div class="flex justify-between items-center w-full px-4 h-16 max-w-screen-xl mx-auto">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary font-headline-sm" data-icon="delivery_dining">delivery_dining</span>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary">Gab'Pharma Livreur</h1>
+</div>
+<div class="flex items-center gap-2">
+<div class="bg-secondary-container px-3 py-1 rounded-full flex items-center gap-1.5 transition-transform active:scale-95 duration-150">
+<span class="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+<span class="font-label-lg text-label-lg text-on-secondary-container">EN LIGNE</span>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content: Full Screen Map Area -->
+<main class="flex-grow relative h-full w-full pt-16">
+<!-- Mock Map Background -->
+<div class="absolute inset-0 z-0">
+<div class="w-full h-full bg-surface-dim relative overflow-hidden" data-location="Libreville" style="">
+<!-- SVG Mock Map Data -->
+<svg class="w-full h-full opacity-60" viewbox="0 0 400 800">
+<!-- Road network -->
+<path d="M0,200 L400,200 M100,0 L100,800 M300,0 L300,800 M0,500 L400,500 M50,0 L350,800" fill="none" stroke="#bec9bd" stroke-width="8"></path>
+<!-- Route Path -->
+<path class="map-line" d="M100,100 L100,200 L250,200 L300,350 L300,500" fill="none" id="routeLine" stroke="#004f26" stroke-linecap="round" stroke-width="6"></path>
+<!-- Pharmacy Start Marker -->
+<circle class="shadow-lg" cx="100" cy="100" fill="#006a35" r="12"></circle>
+<text fill="#004f26" font-family="Inter" font-size="14" font-weight="600" x="120" y="105">Pharmacie de Garde</text>
+<!-- Destination Marker -->
+<circle class="shadow-xl" cx="300" cy="500" fill="#ba1a1a" r="16"></circle>
+<circle class="pulse" cx="300" cy="500" fill="#ba1a1a" fill-opacity="0.2" r="30"></circle>
+<text fill="#ba1a1a" font-family="Inter" font-size="14" font-weight="700" x="325" y="505">Patient (Louis)</text>
+<!-- Delivery Driver Mock Position -->
+<g transform="translate(200, 200)">
+<circle cx="0" cy="0" fill="#004f26" r="10"></circle>
+<path d="M0,-15 L10,10 L-10,10 Z" fill="#004f26" transform="rotate(45)"></path>
+</g>
+</svg>
+<!-- Professional Subtle Textures -->
+<div class="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-sm border border-outline-variant/30 max-w-[200px]">
+<p class="font-label-md text-on-surface-variant uppercase tracking-wider">Secteur Actuel</p>
+<p class="font-headline-sm text-on-surface font-bold">Libreville Centre</p>
+</div>
+</div>
+</div>
+<!-- Floating Navigation Stats Overlay -->
+<div class="absolute top-20 left-1/2 -translate-x-1/2 w-[90%] max-w-sm z-20">
+<div class="bg-surface-container-lowest/95 backdrop-blur-lg rounded-2xl shadow-lg border border-primary/10 p-4 flex justify-between items-center">
+<div class="flex items-center gap-3 border-r border-outline-variant pr-4 flex-1">
+<span class="material-symbols-outlined text-primary" data-icon="schedule">schedule</span>
+<div class="flex flex-col">
+<span class="text-label-md font-label-md text-on-surface-variant">Temps estimé</span>
+<span class="text-headline-sm font-headline-sm font-bold text-primary">12 min</span>
+</div>
+</div>
+<div class="flex items-center gap-3 pl-4 flex-1">
+<span class="material-symbols-outlined text-primary" data-icon="straighten">straighten</span>
+<div class="flex flex-col">
+<span class="text-label-md font-label-md text-on-surface-variant">Distance</span>
+<span class="text-headline-sm font-headline-sm font-bold text-primary">4.2 km</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Sticky Floating Action Panel -->
+<div class="absolute bottom-28 left-0 w-full px-4 z-20 md:bottom-10 md:max-w-md md:left-1/2 md:-translate-x-1/2">
+<div class="bg-surface-container-lowest rounded-3xl shadow-2xl p-5 border border-outline-variant/20">
+<div class="flex items-center gap-4 mb-5">
+<div class="w-12 h-12 rounded-full bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</div>
+<div class="flex-grow">
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface">Patient: M. Ntoutoume</h3>
+<p class="text-body-md font-body-md text-on-surface-variant">Quartier Louis, Rue 12.045</p>
+</div>
+<button class="bg-surface-container-high w-10 h-10 rounded-full flex items-center justify-center text-primary transition-transform active:scale-90">
+<span class="material-symbols-outlined" data-icon="info">info</span>
+</button>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<button class="flex items-center justify-center gap-2 font-label-lg text-label-lg border-2 border-primary text-primary h-[56px] rounded-full transition-all active:scale-95 hover:bg-surface-container-low">
+<span class="material-symbols-outlined" data-icon="call">call</span>
+                        Appeler Patient
+                    </button>
+<button class="flex items-center justify-center gap-2 font-label-lg text-label-lg bg-primary-container text-white h-[56px] rounded-full shadow-md transition-all active:scale-95 hover:brightness-110">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+                        Retour à la course
+                    </button>
+</div>
+</div>
+</div>
+<!-- Floating Action Button: Recenter -->
+<button class="absolute bottom-64 right-4 z-20 bg-surface-container-lowest w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-primary border border-outline-variant/30 active:scale-90 duration-150">
+<span class="material-symbols-outlined" data-icon="my_location">my_location</span>
+</button>
+</main>
+<!-- Bottom Navigation Bar (Shared Component Mapping) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-surface border-t border-outline-variant shadow-lg md:hidden">
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-all">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-md text-label-md">Accueil</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl px-3 py-1 scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="route">route</span>
+<span class="font-label-md text-label-md">Missions</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span class="font-label-md text-label-md">Historique</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Revenus</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-md text-label-md">Profil</span>
+</div>
+</nav>
+<script>
+        // Micro-interaction for UI elements
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const icon = this.querySelector('.material-symbols-outlined');
+                if(icon) {
+                    icon.classList.add('scale-125');
+                    setTimeout(() => icon.classList.remove('scale-125'), 200);
+                }
+            });
+        });
+
+        // Simple mock route "drawing" animation
+        const routeLine = document.getElementById('routeLine');
+        if (routeLine) {
+            const length = routeLine.getTotalLength();
+            routeLine.style.strokeDasharray = length;
+            routeLine.style.strokeDashoffset = length;
+            routeLine.getBoundingClientRect(); // Trigger reflow
+            routeLine.style.transition = 'stroke-dashoffset 2s ease-in-out';
+            routeLine.style.strokeDashoffset = '0';
+        }
+    </script>
+</body></html>

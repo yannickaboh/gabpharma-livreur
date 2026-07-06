@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Gab'Pharma Livreur - Mes Documents</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-nav {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#d7e6de",
+                        "secondary-container": "#a8f4b9",
+                        "surface-dim": "#ceded5",
+                        "secondary-fixed-dim": "#8cd79f",
+                        "secondary": "#206b3d",
+                        "surface-bright": "#eefdf4",
+                        "surface-container-high": "#dcece3",
+                        "on-surface-variant": "#3f4940",
+                        "surface-tint": "#076d38",
+                        "on-primary-container": "#8fe7a5",
+                        "primary-fixed-dim": "#81d998",
+                        "on-secondary-fixed": "#00210d",
+                        "secondary-fixed": "#a8f4b9",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#005caa",
+                        "surface-container-low": "#e8f7ef",
+                        "outline": "#6f7a6f",
+                        "on-secondary-container": "#287243",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed": "#00210c",
+                        "primary-fixed": "#9df6b2",
+                        "inverse-surface": "#26332e",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed": "#001c3a",
+                        "tertiary-fixed-dim": "#a5c8ff",
+                        "inverse-primary": "#81d998",
+                        "inverse-on-surface": "#e5f4ec",
+                        "background": "#eefdf4",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-container": "#bdd5ff",
+                        "surface": "#eefdf4",
+                        "on-primary-fixed-variant": "#005228",
+                        "primary": "#004f26",
+                        "on-surface": "#111e19",
+                        "on-background": "#111e19",
+                        "surface-container-highest": "#d7e6de",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#004481",
+                        "primary-container": "#006a35",
+                        "tertiary-fixed": "#d4e3ff",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#004786",
+                        "outline-variant": "#bec9bd",
+                        "surface-container": "#e2f1e9",
+                        "on-secondary-fixed-variant": "#005229",
+                        "on-error": "#ffffff",
+                        "on-secondary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter-mobile": "12px",
+                        "margin-mobile": "16px",
+                        "xl": "32px",
+                        "base": "8px",
+                        "lg": "24px",
+                        "touch-target-min": "48px",
+                        "md": "16px",
+                        "sm": "8px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "label-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "price-display": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["22px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                        "label-lg": ["14px", {"lineHeight": "20px", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "price-display": ["20px", {"lineHeight": "24px", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body-lg text-on-surface min-h-screen pb-24">
+<!-- Top AppBar -->
+<header class="bg-surface shadow-sm docked full-width top-0 z-40 fixed w-full">
+<div class="flex justify-between items-center w-full px-4 h-16 max-w-screen-xl mx-auto">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary" data-icon="delivery_dining">delivery_dining</span>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary">Mes Documents</h1>
+</div>
+<button class="font-label-lg text-label-lg text-primary bg-surface-container-low px-4 py-1.5 rounded-full border border-primary/20">
+                EN LIGNE
+            </button>
+</div>
+</header>
+<main class="pt-20 px-4 max-w-md mx-auto space-y-6">
+<!-- Profile Completion Progress -->
+<section class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/30">
+<div class="flex justify-between items-end mb-3">
+<div class="space-y-0.5">
+<p class="font-label-lg text-label-lg text-on-surface-variant">Profil Livreur</p>
+<p class="font-headline-sm text-headline-sm font-bold">Complété à 65%</p>
+</div>
+<span class="material-symbols-outlined text-primary-container" data-icon="verified_user">verified_user</span>
+</div>
+<div class="w-full bg-surface-variant rounded-full h-2.5">
+<div class="bg-primary-container h-2.5 rounded-full transition-all duration-1000 ease-out" style="width: 65%"></div>
+</div>
+<p class="mt-3 font-body-md text-body-md text-on-surface-variant">
+                Validez vos documents pour commencer à recevoir des courses à Libreville.
+            </p>
+</section>
+<!-- Document List -->
+<div class="space-y-4">
+<!-- CNI / Passport (Validé) -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-outline-variant/20 flex gap-4 items-center">
+<div class="w-16 h-16 rounded-lg bg-surface-variant flex-shrink-0 overflow-hidden relative group">
+<img class="w-full h-full object-cover opacity-60" data-alt="A clean professional studio shot of a Gabonese National ID card laying on a white medical desk, featuring official green and yellow colors, soft sunlight from a window, high-end photography style, corporate medical atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDefYUfGEWTjKWGn07Kb46zF_H4jBQhyY3uzqPQ6VEnj98cAiFGTjarWfjChU1h3EVRUJNPIe2ffCL_EdgdcVZM5k7b1jP2hVFA9BSGIA79-Atepz-lENc4STYzsgfceEr-0XRG1hj5eXRfph4b6Sse32ZPxSoHCgLVnPqYyyHYwfAz5nby2imhem9u2eyXvmnDQgsJmyf8x8TddAzYdu6wSBpyaeoY1uhfGAltgN96W3X7lFnoDDch"/>
+<div class="absolute inset-0 flex items-center justify-center bg-primary/10">
+<span class="material-symbols-outlined text-primary" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+</div>
+<div class="flex-grow">
+<h3 class="font-label-lg text-label-lg text-on-surface">CNI/Passeport</h3>
+<div class="flex items-center gap-1.5 mt-1">
+<span class="inline-block w-2 h-2 rounded-full bg-primary"></span>
+<span class="text-primary font-label-md text-label-md">Validé</span>
+</div>
+</div>
+<button class="p-2 text-on-surface-variant hover:bg-surface-variant rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+</div>
+<!-- Permis de conduire (En attente) -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-outline-variant/20 flex gap-4 items-center">
+<div class="w-16 h-16 rounded-lg bg-surface-variant flex-shrink-0 overflow-hidden relative">
+<img class="w-full h-full object-cover blur-[1px] opacity-40" data-alt="A detailed photo of a Gabonese driver's license with secure holographic elements, placed on a high-tech modern surface, bright daylight illumination, clear professional commercial photography style focusing on reliability and trust." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHVDJrFqHx2RrocTsbgSzcIopDRENxDmO7aOuRu6ctgiPQiLLZ9w1j6xfBqWO2NSsB1lbUyfELfdkCH4cKi8H61U3ZRQ-46QM5jEBfJ-GNIbAFbYqeKTNbBXd3VlpUFbuifLihj9FhwbplJ133m-ejlz_K-al1ZA7scHQi-4zLvUFeOsk2XyOr8YZgcGNh_5eHg6LhCAExFWvQ8_97HGcdmOtX1LXpMyyTUCbCZNtxOemEo49oYmit"/>
+<div class="absolute inset-0 flex items-center justify-center bg-tertiary-container/10">
+<span class="material-symbols-outlined text-tertiary" data-icon="schedule">schedule</span>
+</div>
+</div>
+<div class="flex-grow">
+<h3 class="font-label-lg text-label-lg text-on-surface">Permis de conduire</h3>
+<div class="flex items-center gap-1.5 mt-1">
+<span class="inline-block w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="text-tertiary font-label-md text-label-md">En attente de vérification</span>
+</div>
+</div>
+</div>
+<!-- Assurance (Refusé) -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border-2 border-error/20 flex flex-col gap-4">
+<div class="flex gap-4 items-center">
+<div class="w-16 h-16 rounded-lg bg-error-container flex-shrink-0 overflow-hidden relative">
+<img class="w-full h-full object-cover blur-[2px] grayscale" data-alt="A blurry, out-of-focus photograph of a paper insurance document on a dark wooden table, dim indoor lighting, intentional photographic error style, red-tinted overlay indicating rejection." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDUMUQXdOcdscTvct8Geq_jVRYZpabMC4tsx7LVtWs0gvbjbTr3-PGDWpappK9oLs-5SO78yrzJaiFcKUzz58iO831Wc0I7cgZWHubQIMM9wM0A9B46pGl75d7pYlUa1QQV94w3Hb3DNP2uDiHfRK9yDg1sbToit6ZymLhCCLkLKI7i-HEZsAc0uKvhQo6nFhvZWwpA-wUSPgWYJ8rTtCo5JsDEGVdq2aXnzeJLlZ0cQymN7Vln_Rjq"/>
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-error" data-icon="error" style="font-variation-settings: 'FILL' 1;">error</span>
+</div>
+</div>
+<div class="flex-grow">
+<h3 class="font-label-lg text-label-lg text-on-surface">Assurance</h3>
+<div class="flex items-center gap-1.5 mt-1">
+<span class="inline-block w-2 h-2 rounded-full bg-error"></span>
+<span class="text-error font-label-md text-label-md">Refusé - Photo floue</span>
+</div>
+</div>
+</div>
+<div class="bg-error-container/20 p-3 rounded-lg border border-error/10">
+<p class="text-body-md font-body-md text-error leading-tight">
+                        Veuillez reprendre la photo. Assurez-vous que tous les textes sont lisibles et qu'il n'y a pas de reflet.
+                    </p>
+</div>
+<button class="w-full py-3 bg-primary-container text-on-primary font-label-lg text-label-lg rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[20px]" data-icon="add_a_photo">add_a_photo</span>
+                    Remplacer le document
+                </button>
+</div>
+</div>
+<!-- Instructional Section -->
+<section class="mt-8 space-y-4">
+<h2 class="font-headline-sm text-headline-sm text-on-surface px-1">Conseils de validation</h2>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container p-4 rounded-xl space-y-2">
+<span class="material-symbols-outlined text-primary" data-icon="light_mode">light_mode</span>
+<p class="font-label-lg text-label-lg">Bon éclairage</p>
+<p class="text-label-md font-label-md text-on-surface-variant">Évitez les ombres sur le document.</p>
+</div>
+<div class="bg-surface-container p-4 rounded-xl space-y-2">
+<span class="material-symbols-outlined text-primary" data-icon="center_focus_weak">center_focus_weak</span>
+<p class="font-label-lg text-label-lg">Mise au point</p>
+<p class="text-label-md font-label-md text-on-surface-variant">Le texte doit être parfaitement net.</p>
+</div>
+</div>
+</section>
+<!-- Legal Disclaimer -->
+<p class="text-center text-label-md font-label-md text-on-surface-variant pt-4 pb-8">
+            Gab'Pharma sécurise vos données conformément aux lois de protection des données personnelles en vigueur.
+        </p>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-surface border-t border-outline-variant shadow-lg">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 hover:bg-surface-variant/50 rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-md text-label-md">Accueil</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 hover:bg-surface-variant/50 rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="route">route</span>
+<span class="font-label-md text-label-md">Missions</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 hover:bg-surface-variant/50 rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span class="font-label-md text-label-md">Historique</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 hover:bg-surface-variant/50 rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Revenus</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl px-3 py-1 scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined active-nav" data-icon="person">person</span>
+<span class="font-label-md text-label-md font-bold">Profil</span>
+</a>
+</nav>
+<script>
+        // Simple interaction for the button
+        document.querySelector('button.bg-primary-container')?.addEventListener('click', function() {
+            this.classList.add('scale-95');
+            setTimeout(() => this.classList.remove('scale-95'), 150);
+        });
+
+        // Simulating loading state for progress bar
+        window.addEventListener('load', () => {
+            const bar = document.querySelector('.bg-primary-container.h-2.5');
+            bar.style.width = '0%';
+            setTimeout(() => {
+                bar.style.width = '65%';
+            }, 300);
+        });
+    </script>
+</body></html>

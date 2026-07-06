@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Gab'Pharma Livreur - Courses Disponibles</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#d7e6de",
+                        "secondary-container": "#a8f4b9",
+                        "surface-dim": "#ceded5",
+                        "secondary-fixed-dim": "#8cd79f",
+                        "secondary": "#206b3d",
+                        "surface-bright": "#eefdf4",
+                        "surface-container-high": "#dcece3",
+                        "on-surface-variant": "#3f4940",
+                        "surface-tint": "#076d38",
+                        "on-primary-container": "#8fe7a5",
+                        "primary-fixed-dim": "#81d998",
+                        "on-secondary-fixed": "#00210d",
+                        "secondary-fixed": "#a8f4b9",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#005caa",
+                        "surface-container-low": "#e8f7ef",
+                        "outline": "#6f7a6f",
+                        "on-secondary-container": "#287243",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed": "#00210c",
+                        "primary-fixed": "#9df6b2",
+                        "inverse-surface": "#26332e",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed": "#001c3a",
+                        "tertiary-fixed-dim": "#a5c8ff",
+                        "inverse-primary": "#81d998",
+                        "inverse-on-surface": "#e5f4ec",
+                        "background": "#eefdf4",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-container": "#bdd5ff",
+                        "surface": "#eefdf4",
+                        "on-primary-fixed-variant": "#005228",
+                        "primary": "#004f26",
+                        "on-surface": "#111e19",
+                        "on-background": "#111e19",
+                        "surface-container-highest": "#d7e6de",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#004481",
+                        "primary-container": "#006a35",
+                        "tertiary-fixed": "#d4e3ff",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#004786",
+                        "outline-variant": "#bec9bd",
+                        "surface-container": "#e2f1e9",
+                        "on-secondary-fixed-variant": "#005229",
+                        "on-error": "#ffffff",
+                        "on-secondary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter-mobile": "12px",
+                        "margin-mobile": "16px",
+                        "xl": "32px",
+                        "base": "8px",
+                        "lg": "24px",
+                        "touch-target-min": "48px",
+                        "md": "16px",
+                        "sm": "8px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "label-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "price-display": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["22px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                        "label-lg": ["14px", {"lineHeight": "20px", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "price-display": ["20px", {"lineHeight": "24px", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #EDFDF4; /* Overriding with surface level 0 from brand guide */
+            -webkit-tap-highlight-color: transparent;
+        }
+        .course-card-entrance {
+            animation: slideUpFade 0.4s ease-out forwards;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        @keyframes slideUpFade {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-surface">
+<!-- Top AppBar -->
+<header class="bg-surface dark:bg-surface-container-highest shadow-sm docked full-width top-0 fixed top-0 left-0 right-0 z-50">
+<div class="flex justify-between items-center w-full px-4 h-16 max-w-screen-xl mx-auto">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary font-bold" data-icon="delivery_dining">delivery_dining</span>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary dark:text-primary-fixed">Gab'Pharma Livreur</h1>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+<span class="font-label-lg text-label-lg text-primary dark:text-primary-fixed">EN LIGNE</span>
+</div>
+</div>
+</header>
+<main class="pt-20 pb-24 px-margin-mobile max-w-screen-xl mx-auto">
+<!-- Welcome & Info Section -->
+<section class="mb-lg">
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-xs">Courses disponibles</h2>
+<p class="font-body-md text-on-surface-variant mb-md">Consultez les commandes en attente d'attribution.</p>
+<!-- Manual Assignment Alert -->
+<div class="bg-secondary-container/30 border border-secondary-fixed-dim rounded-xl p-md flex items-start gap-3">
+<span class="material-symbols-outlined text-on-secondary-container" data-icon="info" style="font-variation-settings: 'FILL' 1;">info</span>
+<p class="font-label-lg text-on-secondary-container">Affectation manuelle par le Staff Gab'Pharma. Les missions vous seront attribuées directement sur votre interface active.</p>
+</div>
+</section>
+<!-- Waiting List -->
+<div class="space-y-md">
+<!-- Course Card 1 -->
+<div class="course-card-entrance bg-surface-container-lowest rounded-xl p-md shadow-[0_4px_12px_rgba(0,0,0,0.05)] border-l-4 border-primary">
+<div class="flex justify-between items-start mb-sm">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Pharmacie de l'Etoile</h3>
+<div class="flex items-center gap-1 text-on-surface-variant mt-xs">
+<span class="material-symbols-outlined text-[18px]" data-icon="location_on">location_on</span>
+<span class="font-label-md text-label-md">Akanda - Angondjé</span>
+</div>
+</div>
+<div class="bg-surface-variant text-on-surface-variant px-3 py-1 rounded-full font-label-md text-label-md">
+                        En attente
+                    </div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-md pt-md border-t border-surface-variant">
+<div class="flex flex-col">
+<span class="font-label-md text-on-surface-variant uppercase tracking-wider">Revenu est.</span>
+<span class="font-price-display text-price-display text-primary">1 500 FCFA</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label-md text-on-surface-variant uppercase tracking-wider">Distance</span>
+<span class="font-price-display text-price-display text-on-surface">2.4 km</span>
+</div>
+</div>
+</div>
+<!-- Course Card 2 -->
+<div class="course-card-entrance bg-surface-container-lowest rounded-xl p-md shadow-[0_4px_12px_rgba(0,0,0,0.05)] border-l-4 border-primary" style="animation-delay: 0.1s;">
+<div class="flex justify-between items-start mb-sm">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Pharmacie du Pont</h3>
+<div class="flex items-center gap-1 text-on-surface-variant mt-xs">
+<span class="material-symbols-outlined text-[18px]" data-icon="location_on">location_on</span>
+<span class="font-label-md text-label-md">Libreville - Nzeng Ayong</span>
+</div>
+</div>
+<div class="bg-surface-variant text-on-surface-variant px-3 py-1 rounded-full font-label-md text-label-md">
+                        En attente
+                    </div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-md pt-md border-t border-surface-variant">
+<div class="flex flex-col">
+<span class="font-label-md text-on-surface-variant uppercase tracking-wider">Revenu est.</span>
+<span class="font-price-display text-price-display text-primary">2 200 FCFA</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label-md text-on-surface-variant uppercase tracking-wider">Distance</span>
+<span class="font-price-display text-price-display text-on-surface">5.1 km</span>
+</div>
+</div>
+</div>
+<!-- Course Card 3 -->
+<div class="course-card-entrance bg-surface-container-lowest rounded-xl p-md shadow-[0_4px_12px_rgba(0,0,0,0.05)] border-l-4 border-primary" style="animation-delay: 0.2s;">
+<div class="flex justify-between items-start mb-sm">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Pharmacie Okala</h3>
+<div class="flex items-center gap-1 text-on-surface-variant mt-xs">
+<span class="material-symbols-outlined text-[18px]" data-icon="location_on">location_on</span>
+<span class="font-label-md text-label-md">Okala - Mikolongo</span>
+</div>
+</div>
+<div class="bg-surface-variant text-on-surface-variant px-3 py-1 rounded-full font-label-md text-label-md">
+                        En attente
+                    </div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-md pt-md border-t border-surface-variant">
+<div class="flex flex-col">
+<span class="font-label-md text-on-surface-variant uppercase tracking-wider">Revenu est.</span>
+<span class="font-price-display text-price-display text-primary">1 800 FCFA</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label-md text-on-surface-variant uppercase tracking-wider">Distance</span>
+<span class="font-price-display text-price-display text-on-surface">3.8 km</span>
+</div>
+</div>
+</div>
+<!-- Empty State Illustration Placeholder -->
+<div class="mt-xl text-center py-xl">
+<div class="w-24 h-24 mx-auto mb-md flex items-center justify-center rounded-full bg-surface-container-high/50">
+<span class="material-symbols-outlined text-4xl text-outline" data-icon="pending_actions">pending_actions</span>
+</div>
+<p class="font-body-md text-on-surface-variant italic px-lg">Plus aucune course en attente pour le moment dans votre secteur.</p>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-surface dark:bg-surface-container-highest border-t border-outline-variant dark:border-outline shadow-lg">
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-3 py-1 hover:bg-surface-variant dark:hover:bg-on-surface-variant/10 rounded-xl transition-all">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-md text-label-md">Accueil</span>
+</button>
+<button class="flex flex-col items-center justify-center bg-secondary-container dark:bg-secondary-fixed-dim text-on-secondary-container dark:text-on-secondary-fixed rounded-xl px-3 py-1 scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="route" style="font-variation-settings: 'FILL' 1;">route</span>
+<span class="font-label-md text-label-md">Missions</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-3 py-1 hover:bg-surface-variant dark:hover:bg-on-surface-variant/10 rounded-xl transition-all">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span class="font-label-md text-label-md">Historique</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-3 py-1 hover:bg-surface-variant dark:hover:bg-on-surface-variant/10 rounded-xl transition-all">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Revenus</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-3 py-1 hover:bg-surface-variant dark:hover:bg-on-surface-variant/10 rounded-xl transition-all">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-md text-label-md">Profil</span>
+</button>
+</nav>
+<script>
+        // Micro-interaction for cards
+        document.querySelectorAll('.course-card-entrance').forEach(card => {
+            card.addEventListener('touchstart', () => {
+                card.classList.add('scale-[0.98]', 'transition-transform');
+            });
+            card.addEventListener('touchend', () => {
+                card.classList.remove('scale-[0.98]');
+            });
+        });
+    </script>
+</body></html>

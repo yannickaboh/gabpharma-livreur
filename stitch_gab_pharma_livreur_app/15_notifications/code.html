@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .unread-dot {
+            position: relative;
+        }
+        .unread-dot::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 8px;
+            height: 8px;
+            background-color: #006A35;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: slideIn 0.4s ease-out forwards;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#d7e6de",
+                        "secondary-container": "#a8f4b9",
+                        "surface-dim": "#ceded5",
+                        "secondary-fixed-dim": "#8cd79f",
+                        "secondary": "#206b3d",
+                        "surface-bright": "#eefdf4",
+                        "surface-container-high": "#dcece3",
+                        "on-surface-variant": "#3f4940",
+                        "surface-tint": "#076d38",
+                        "on-primary-container": "#8fe7a5",
+                        "primary-fixed-dim": "#81d998",
+                        "on-secondary-fixed": "#00210d",
+                        "secondary-fixed": "#a8f4b9",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#005caa",
+                        "surface-container-low": "#e8f7ef",
+                        "outline": "#6f7a6f",
+                        "on-secondary-container": "#287243",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed": "#00210c",
+                        "primary-fixed": "#9df6b2",
+                        "inverse-surface": "#26332e",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed": "#001c3a",
+                        "tertiary-fixed-dim": "#a5c8ff",
+                        "inverse-primary": "#81d998",
+                        "inverse-on-surface": "#e5f4ec",
+                        "background": "#eefdf4",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-container": "#bdd5ff",
+                        "surface": "#eefdf4",
+                        "on-primary-fixed-variant": "#005228",
+                        "primary": "#004f26",
+                        "on-surface": "#111e19",
+                        "on-background": "#111e19",
+                        "surface-container-highest": "#d7e6de",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#004481",
+                        "primary-container": "#006a35",
+                        "tertiary-fixed": "#d4e3ff",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#004786",
+                        "outline-variant": "#bec9bd",
+                        "surface-container": "#e2f1e9",
+                        "on-secondary-fixed-variant": "#005229",
+                        "on-error": "#ffffff",
+                        "on-secondary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter-mobile": "12px",
+                        "margin-mobile": "16px",
+                        "xl": "32px",
+                        "base": "8px",
+                        "lg": "24px",
+                        "touch-target-min": "48px",
+                        "md": "16px",
+                        "sm": "8px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "label-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "price-display": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["22px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                        "label-lg": ["14px", {"lineHeight": "20px", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "price-display": ["20px", {"lineHeight": "24px", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-lg min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="bg-surface shadow-sm docked full-width top-0 sticky z-40 h-16">
+<div class="flex justify-between items-center w-full px-4 h-16 max-w-screen-xl mx-auto">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">notifications</span>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary">Notifications</h1>
+</div>
+<button class="flex items-center gap-1 text-primary font-label-lg px-3 py-1 rounded-full hover:bg-surface-container-low transition-colors duration-150 active:scale-95">
+<span class="material-symbols-outlined text-[20px]">done_all</span>
+<span>TOUT LIRE</span>
+</button>
+</div>
+</header>
+<!-- Content Area -->
+<main class="max-w-screen-xl mx-auto px-4 mt-6">
+<!-- Section Title: Aujourd'hui -->
+<div class="mb-4">
+<h2 class="font-label-lg text-on-surface-variant px-1 uppercase tracking-wider text-xs">Aujourd'hui</h2>
+</div>
+<div class="space-y-3">
+<!-- Notification Card: Nouvelle course -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border-l-4 border-primary animate-fade-in cursor-pointer hover:bg-surface-container-low transition-colors duration-200 active:scale-[0.98]" style="animation-delay: 0.1s">
+<div class="flex gap-4">
+<div class="bg-secondary-container w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 unread-dot">
+<span class="material-symbols-outlined text-on-secondary-container">delivery_dining</span>
+</div>
+<div class="flex-grow">
+<div class="flex justify-between items-start mb-1">
+<h3 class="font-label-lg text-on-surface">Nouvelle course disponible</h3>
+<span class="font-label-md text-on-surface-variant">Il y a 5 min</span>
+</div>
+<p class="text-body-md text-on-surface-variant line-clamp-2">Une commande de 12 500 FCFA est disponible à la Pharmacie du Littoral vers Akanda.</p>
+<div class="mt-3 inline-flex items-center gap-1 text-primary font-label-md">
+<span>Voir les détails</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Notification Card: Affectation confirmée -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border-l-4 border-tertiary-container animate-fade-in cursor-pointer hover:bg-surface-container-low transition-colors duration-200 active:scale-[0.98]" style="animation-delay: 0.2s">
+<div class="flex gap-4">
+<div class="bg-tertiary-fixed w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 unread-dot">
+<span class="material-symbols-outlined text-tertiary">task_alt</span>
+</div>
+<div class="flex-grow">
+<div class="flex justify-between items-start mb-1">
+<h3 class="font-label-lg text-on-surface">Affectation confirmée</h3>
+<span class="font-label-md text-on-surface-variant">Il y a 45 min</span>
+</div>
+<p class="text-body-md text-on-surface-variant">La course #9822 a été officiellement assignée à votre profil. Préparez-vous au départ.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Section Title: Hier -->
+<div class="mt-8 mb-4">
+<h2 class="font-label-lg text-on-surface-variant px-1 uppercase tracking-wider text-xs">Hier</h2>
+</div>
+<div class="space-y-3">
+<!-- Notification Card: Document validé -->
+<div class="bg-surface-container p-4 rounded-xl shadow-sm animate-fade-in cursor-pointer opacity-80 hover:bg-surface-container-high transition-colors duration-200 active:scale-[0.98]" style="animation-delay: 0.3s">
+<div class="flex gap-4">
+<div class="bg-surface-variant w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-on-surface-variant">description</span>
+</div>
+<div class="flex-grow">
+<div class="flex justify-between items-start mb-1">
+<h3 class="font-label-lg text-on-surface">Document validé</h3>
+<span class="font-label-md text-on-surface-variant">Hier, 14:20</span>
+</div>
+<p class="text-body-md text-on-surface-variant">Votre assurance véhicule a été vérifiée et validée par l'administration.</p>
+</div>
+</div>
+</div>
+<!-- Notification Card: Versement reçu -->
+<div class="bg-surface-container p-4 rounded-xl shadow-sm animate-fade-in cursor-pointer opacity-80 hover:bg-surface-container-high transition-colors duration-200 active:scale-[0.98]" style="animation-delay: 0.4s">
+<div class="flex gap-4">
+<div class="bg-secondary-fixed-dim/20 w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-secondary">payments</span>
+</div>
+<div class="flex-grow">
+<div class="flex justify-between items-start mb-1">
+<h3 class="font-label-lg text-on-surface">Versement reçu</h3>
+<span class="font-label-md text-on-surface-variant">Hier, 09:15</span>
+</div>
+<p class="text-body-md text-on-surface-variant">Un versement de 45 000 FCFA a été effectué sur votre compte Airtel Money.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Empty State Decoration (Hidden if notifications exist) -->
+<div class="hidden flex-col items-center justify-center py-20 text-center opacity-40">
+<span class="material-symbols-outlined text-6xl mb-4">notifications_off</span>
+<p class="font-headline-sm">Aucune nouvelle notification</p>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-surface border-t border-outline-variant shadow-lg md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-t-3xl">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 hover:bg-surface-variant/30 rounded-xl transition-all duration-200" href="#">
+<span class="material-symbols-outlined mb-1">home</span>
+<span class="font-label-md text-label-md">Accueil</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 hover:bg-surface-variant/30 rounded-xl transition-all duration-200" href="#">
+<span class="material-symbols-outlined mb-1">route</span>
+<span class="font-label-md text-label-md">Missions</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 hover:bg-surface-variant/30 rounded-xl transition-all duration-200" href="#">
+<span class="material-symbols-outlined mb-1">history</span>
+<span class="font-label-md text-label-md">Historique</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 hover:bg-surface-variant/30 rounded-xl transition-all duration-200" href="#">
+<span class="material-symbols-outlined mb-1">payments</span>
+<span class="font-label-md text-label-md">Revenus</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl px-4 py-1 scale-95 duration-200" href="#">
+<div class="unread-dot relative">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">person</span>
+</div>
+<span class="font-label-md text-label-md">Profil</span>
+</a>
+</nav>
+<!-- Background Decoration -->
+<div class="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
+<div class="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary-container/10 blur-[120px] rounded-full"></div>
+<div class="absolute bottom-[5%] left-[-5%] w-[30%] h-[30%] bg-primary-container/5 blur-[100px] rounded-full"></div>
+</div>
+<script>
+        // Simple Interaction logic
+        document.querySelectorAll('.animate-fade-in').forEach(card => {
+            card.addEventListener('click', function() {
+                // Toggle read state for visual feedback in this demo
+                this.classList.remove('border-l-4');
+                this.classList.add('bg-surface-container');
+                this.classList.add('opacity-80');
+                const dot = this.querySelector('.unread-dot');
+                if(dot) dot.classList.remove('unread-dot');
+            });
+        });
+    </script>
+</body></html>

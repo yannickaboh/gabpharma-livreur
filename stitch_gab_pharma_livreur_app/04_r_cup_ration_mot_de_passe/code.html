@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Récupération de mot de passe - Gab'Pharma Livreur</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-variant": "#d7e6de",
+                    "secondary-container": "#a8f4b9",
+                    "surface-dim": "#ceded5",
+                    "secondary-fixed-dim": "#8cd79f",
+                    "secondary": "#206b3d",
+                    "surface-bright": "#eefdf4",
+                    "surface-container-high": "#dcece3",
+                    "on-surface-variant": "#3f4940",
+                    "surface-tint": "#076d38",
+                    "on-primary-container": "#8fe7a5",
+                    "primary-fixed-dim": "#81d998",
+                    "on-secondary-fixed": "#00210d",
+                    "secondary-fixed": "#a8f4b9",
+                    "error-container": "#ffdad6",
+                    "tertiary-container": "#005caa",
+                    "surface-container-low": "#e8f7ef",
+                    "outline": "#6f7a6f",
+                    "on-secondary-container": "#287243",
+                    "error": "#ba1a1a",
+                    "on-primary-fixed": "#00210c",
+                    "primary-fixed": "#9df6b2",
+                    "inverse-surface": "#26332e",
+                    "on-error-container": "#93000a",
+                    "on-tertiary-fixed": "#001c3a",
+                    "tertiary-fixed-dim": "#a5c8ff",
+                    "inverse-primary": "#81d998",
+                    "inverse-on-surface": "#e5f4ec",
+                    "background": "#eefdf4",
+                    "on-tertiary": "#ffffff",
+                    "on-tertiary-container": "#bdd5ff",
+                    "surface": "#eefdf4",
+                    "on-primary-fixed-variant": "#005228",
+                    "primary": "#004f26",
+                    "on-surface": "#111e19",
+                    "on-background": "#111e19",
+                    "surface-container-highest": "#d7e6de",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary": "#004481",
+                    "primary-container": "#006a35",
+                    "tertiary-fixed": "#d4e3ff",
+                    "on-primary": "#ffffff",
+                    "on-tertiary-fixed-variant": "#004786",
+                    "outline-variant": "#bec9bd",
+                    "surface-container": "#e2f1e9",
+                    "on-secondary-fixed-variant": "#005229",
+                    "on-error": "#ffffff",
+                    "on-secondary": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter-mobile": "12px",
+                    "margin-mobile": "16px",
+                    "xl": "32px",
+                    "base": "8px",
+                    "lg": "24px",
+                    "touch-target-min": "48px",
+                    "md": "16px",
+                    "sm": "8px",
+                    "xs": "4px"
+            },
+            "fontFamily": {
+                    "body-lg": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "headline-sm": ["Inter"],
+                    "label-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "price-display": ["Inter"]
+            },
+            "fontSize": {
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-md": ["22px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                    "label-lg": ["14px", {"lineHeight": "20px", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "price-display": ["20px", {"lineHeight": "24px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #EDFDF4; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .step-transition { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .hidden-step { display: none; opacity: 0; transform: translateX(20px); }
+        .active-step { display: block; opacity: 1; transform: translateX(0); }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background min-h-screen flex flex-col items-center">
+<header class="w-full h-16 bg-surface shadow-sm fixed top-0 left-0 flex items-center px-4 z-50">
+<div class="flex items-center justify-between w-full max-w-screen-xl mx-auto">
+<div class="flex items-center gap-2">
+<button class="p-2 hover:bg-surface-container-low rounded-full transition-transform active:scale-95" onclick="window.history.back()">
+<span class="material-symbols-outlined text-primary">arrow_back</span>
+</button>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary">Récupération</h1>
+</div>
+<div class="flex items-center gap-1 bg-surface-container-low px-3 py-1 rounded-full">
+<span class="material-symbols-outlined text-primary text-[18px]">delivery_dining</span>
+<span class="font-label-lg text-label-lg text-primary">Gab'Pharma</span>
+</div>
+</div>
+</header>
+<main class="flex-1 w-full max-w-md px-margin-mobile pt-24 pb-12">
+<div class="mb-lg">
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-xs">Récupération du mot de passe</h2>
+<div class="flex gap-2 mt-4">
+<div class="h-2 flex-1 rounded-full bg-primary-container transition-colors" id="step-dot-1"></div>
+<div class="h-2 flex-1 rounded-full bg-outline-variant transition-colors" id="step-dot-2"></div>
+<div class="h-2 flex-1 rounded-full bg-outline-variant transition-colors" id="step-dot-3"></div>
+</div>
+</div>
+<section class="active-step step-transition" id="step-1">
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-surface-variant mb-lg">
+<div class="w-12 h-12 bg-secondary-container text-on-secondary-container rounded-full flex items-center justify-center mb-md">
+<span class="material-symbols-outlined">person_search</span>
+</div>
+<p class="font-body-lg text-body-lg text-on-surface mb-lg">
+                    Entrez votre identifiant pour recevoir un code de vérification
+                </p>
+<div class="space-y-4">
+<div class="relative">
+<label class="absolute -top-2 left-3 bg-surface-container-lowest px-1 text-xs font-medium text-outline" for="id-input">Matricule ou Email</label>
+<input class="w-full h-touch-target-min px-4 rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none text-on-surface bg-transparent font-body-md text-body-md" id="id-input" placeholder="Ex: livreur_241 / agent@gabpharma.com" type="text"/>
+</div>
+</div>
+</div>
+<button class="w-full h-[56px] bg-primary-container text-on-primary rounded-full font-label-lg text-label-lg shadow-lg active:scale-95 transition-transform" onclick="goToStep(2)">
+                Continuer
+            </button>
+</section>
+<section class="hidden-step step-transition" id="step-2">
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-surface-variant mb-lg">
+<div class="w-12 h-12 bg-secondary-container text-on-secondary-container rounded-full flex items-center justify-center mb-md">
+<span class="material-symbols-outlined">mark_email_read</span>
+</div>
+<p class="font-body-lg text-body-lg text-on-surface mb-md">
+                    Code de vérification envoyé !
+                </p>
+<p class="font-body-md text-body-md text-on-surface-variant mb-lg">
+                    Veuillez saisir le code à 6 chiffres reçu par SMS ou Email.
+                </p>
+<div class="flex justify-between gap-2 mb-md">
+<input class="w-12 h-14 border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" maxlength="1" type="text"/>
+<input class="w-12 h-14 border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" maxlength="1" type="text"/>
+<input class="w-12 h-14 border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" maxlength="1" type="text"/>
+<input class="w-12 h-14 border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" maxlength="1" type="text"/>
+<input class="w-12 h-14 border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" maxlength="1" type="text"/>
+<input class="w-12 h-14 border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" maxlength="1" type="text"/>
+</div>
+<button class="text-primary font-label-lg text-label-lg underline decoration-dotted">Renvoyer le code</button>
+</div>
+<button class="w-full h-[56px] bg-primary-container text-on-primary rounded-full font-label-lg text-label-lg shadow-lg active:scale-95 transition-transform" onclick="goToStep(3)">
+                Vérifier
+            </button>
+</section>
+<section class="hidden-step step-transition" id="step-3">
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-surface-variant mb-lg">
+<div class="w-12 h-12 bg-secondary-container text-on-secondary-container rounded-full flex items-center justify-center mb-md">
+<span class="material-symbols-outlined">lock_reset</span>
+</div>
+<p class="font-body-lg text-body-lg text-on-surface mb-lg">
+                    Définissez votre nouveau mot de passe
+                </p>
+<div class="space-y-6">
+<div class="relative">
+<label class="absolute -top-2 left-3 bg-surface-container-lowest px-1 text-xs font-medium text-outline" for="new-pass">Nouveau mot de passe</label>
+<input class="w-full h-touch-target-min px-4 rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none text-on-surface bg-transparent font-body-md text-body-md" id="new-pass" placeholder="••••••••" type="password"/>
+</div>
+<div class="relative">
+<label class="absolute -top-2 left-3 bg-surface-container-lowest px-1 text-xs font-medium text-outline" for="conf-pass">Confirmer le mot de passe</label>
+<input class="w-full h-touch-target-min px-4 rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none text-on-surface bg-transparent font-body-md text-body-md" id="conf-pass" placeholder="••••••••" type="password"/>
+</div>
+</div>
+<div class="mt-md flex items-start gap-2 bg-surface-container-low p-3 rounded-lg">
+<span class="material-symbols-outlined text-secondary text-[20px]">info</span>
+<p class="font-label-md text-label-md text-on-surface-variant">Le mot de passe doit contenir au moins 8 caractères et un chiffre.</p>
+</div>
+</div>
+<button class="w-full h-[56px] bg-primary-container text-on-primary rounded-full font-label-lg text-label-lg shadow-lg active:scale-95 transition-transform" onclick="completeReset()">
+                Réinitialiser
+            </button>
+</section>
+<div class="hidden-step step-transition text-center py-12" id="success-screen">
+<div class="w-24 h-24 bg-secondary-container text-on-secondary-container rounded-full flex items-center justify-center mx-auto mb-lg shadow-lg">
+<span class="material-symbols-outlined text-[48px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-sm">Félicitations !</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-xl px-8">Votre mot de passe a été réinitialisé avec succès. Vous pouvez maintenant vous connecter.</p>
+<button class="w-full h-[56px] border-2 border-primary text-primary rounded-full font-label-lg text-label-lg active:scale-95 transition-transform" onclick="window.location.reload()">
+                Se connecter
+            </button>
+</div>
+</main>
+<footer class="mt-auto w-full max-w-md px-margin-mobile pb-md text-center">
+<p class="font-label-md text-label-md text-outline">Assistance technique : 01 23 45 67 89</p>
+</footer>
+<script>
+        function goToStep(step) {
+            document.querySelectorAll('section').forEach(s => {
+                s.classList.remove('active-step');
+                s.classList.add('hidden-step');
+            });
+            
+            const targetStep = document.getElementById(`step-${step}`);
+            if (targetStep) {
+                targetStep.classList.remove('hidden-step');
+                targetStep.classList.add('active-step');
+                
+                for(let i=1; i<=3; i++) {
+                    const dot = document.getElementById(`step-dot-${i}`);
+                    if (i <= step) {
+                        dot.classList.remove('bg-outline-variant');
+                        dot.classList.add('bg-primary-container');
+                    } else {
+                        dot.classList.add('bg-outline-variant');
+                        dot.classList.remove('bg-primary-container');
+                    }
+                }
+            }
+        }
+
+        function completeReset() {
+            document.querySelectorAll('section').forEach(s => {
+                s.classList.remove('active-step');
+                s.classList.add('hidden-step');
+            });
+            document.querySelector('.mb-lg').style.display = 'none';
+            
+            const success = document.getElementById('success-screen');
+            success.classList.remove('hidden-step');
+            success.classList.add('active-step');
+        }
+
+        // Auto-focus logic for PIN inputs
+        const inputs = document.querySelectorAll('#step-2 input');
+        inputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                if (e.target.value.length === 1 && index < inputs.length - 1) {
+                    inputs[index + 1].focus();
+                }
+            });
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && e.target.value.length === 0 && index > 0) {
+                    inputs[index - 1].focus();
+                }
+            });
+        });
+    </script>
+</body></html>

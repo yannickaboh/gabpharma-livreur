@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #eefdf4;
+            color: #111e19;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#d7e6de",
+                        "secondary-container": "#a8f4b9",
+                        "surface-dim": "#ceded5",
+                        "secondary-fixed-dim": "#8cd79f",
+                        "secondary": "#206b3d",
+                        "surface-bright": "#eefdf4",
+                        "surface-container-high": "#dcece3",
+                        "on-surface-variant": "#3f4940",
+                        "surface-tint": "#076d38",
+                        "on-primary-container": "#8fe7a5",
+                        "primary-fixed-dim": "#81d998",
+                        "on-secondary-fixed": "#00210d",
+                        "secondary-fixed": "#a8f4b9",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#005caa",
+                        "surface-container-low": "#e8f7ef",
+                        "outline": "#6f7a6f",
+                        "on-secondary-container": "#287243",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed": "#00210c",
+                        "primary-fixed": "#9df6b2",
+                        "inverse-surface": "#26332e",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed": "#001c3a",
+                        "tertiary-fixed-dim": "#a5c8ff",
+                        "inverse-primary": "#81d998",
+                        "inverse-on-surface": "#e5f4ec",
+                        "background": "#eefdf4",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-container": "#bdd5ff",
+                        "surface": "#eefdf4",
+                        "on-primary-fixed-variant": "#005228",
+                        "primary": "#004f26",
+                        "on-surface": "#111e19",
+                        "on-background": "#111e19",
+                        "surface-container-highest": "#d7e6de",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#004481",
+                        "primary-container": "#006a35",
+                        "tertiary-fixed": "#d4e3ff",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#004786",
+                        "outline-variant": "#bec9bd",
+                        "surface-container": "#e2f1e9",
+                        "on-secondary-fixed-variant": "#005229",
+                        "on-error": "#ffffff",
+                        "on-secondary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter-mobile": "12px",
+                        "margin-mobile": "16px",
+                        "xl": "32px",
+                        "base": "8px",
+                        "lg": "24px",
+                        "touch-target-min": "48px",
+                        "md": "16px",
+                        "sm": "8px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "label-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "price-display": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["22px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                        "label-lg": ["14px", {"lineHeight": "20px", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "price-display": ["20px", {"lineHeight": "24px", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface pb-24">
+<!-- Top AppBar -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-surface shadow-sm h-16 flex items-center px-4 max-w-screen-xl mx-auto">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">support_agent</span>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary">Support Gab'Pharma</h1>
+</div>
+<div class="ml-auto">
+<div class="flex items-center gap-2 bg-secondary-container px-3 py-1 rounded-full">
+<div class="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+<span class="text-on-secondary-container font-label-lg text-label-lg">EN LIGNE</span>
+</div>
+</div>
+</header>
+<main class="mt-20 px-4 max-w-screen-md mx-auto">
+<!-- Ticket Categories Section -->
+<section class="mb-8">
+<h2 class="font-headline-sm text-headline-sm mb-4">Nouvelle demande</h2>
+<div class="grid grid-cols-3 gap-3">
+<button class="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-container shadow-sm active:scale-95 transition-transform">
+<div class="w-12 h-12 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined">delivery_dining</span>
+</div>
+<span class="font-label-lg text-label-lg">Livraison</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-container shadow-sm active:scale-95 transition-transform">
+<div class="w-12 h-12 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined">account_circle</span>
+</div>
+<span class="font-label-lg text-label-lg">Compte</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-container shadow-sm active:scale-95 transition-transform">
+<div class="w-12 h-12 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<span class="font-label-lg text-label-lg">Paiement</span>
+</button>
+</div>
+</section>
+<!-- Search & Filter -->
+<div class="flex items-center gap-2 mb-6 bg-surface-container-high rounded-full px-4 py-2">
+<span class="material-symbols-outlined text-outline">search</span>
+<input class="bg-transparent border-none focus:ring-0 w-full text-body-md font-body-md placeholder:text-on-surface-variant" placeholder="Rechercher un ticket..." type="text"/>
+</div>
+<!-- Tickets List -->
+<section>
+<div class="flex justify-between items-center mb-4">
+<h2 class="font-headline-sm text-headline-sm">Mes tickets ouverts</h2>
+<span class="bg-primary-container text-on-primary text-label-md font-label-md px-2 py-0.5 rounded-full">3 Actifs</span>
+</div>
+<div class="space-y-4">
+<!-- Ticket Card 1 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border-l-4 border-primary hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="font-label-lg text-label-lg text-on-surface">Problème de validation client</h3>
+<p class="text-on-surface-variant font-label-md text-label-md">ID: #GP-84291</p>
+</div>
+<span class="bg-blue-100 text-blue-700 font-label-md text-label-md px-2 py-1 rounded-lg">En cours</span>
+</div>
+<div class="flex items-center justify-between mt-4">
+<div class="flex items-center gap-2 text-outline">
+<span class="material-symbols-outlined text-sm">schedule</span>
+<span class="font-label-md text-label-md">Il y a 15 min</span>
+</div>
+<span class="material-symbols-outlined text-primary">arrow_forward_ios</span>
+</div>
+</div>
+<!-- Ticket Card 2 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border-l-4 border-amber-500 hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="font-label-lg text-label-lg text-on-surface">Retard sur la zone Akanda</h3>
+<p class="text-on-surface-variant font-label-md text-label-md">ID: #GP-84110</p>
+</div>
+<span class="bg-amber-100 text-amber-700 font-label-md text-label-md px-2 py-1 rounded-lg">Retard</span>
+</div>
+<div class="flex items-center justify-between mt-4">
+<div class="flex items-center gap-2 text-outline">
+<span class="material-symbols-outlined text-sm">schedule</span>
+<span class="font-label-md text-label-md">Hier, 18:30</span>
+</div>
+<span class="material-symbols-outlined text-primary">arrow_forward_ios</span>
+</div>
+</div>
+<!-- Ticket Card 3 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border-l-4 border-primary hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="font-label-lg text-label-lg text-on-surface">Erreur de paiement commission</h3>
+<p class="text-on-surface-variant font-label-md text-label-md">ID: #GP-83902</p>
+</div>
+<span class="bg-blue-100 text-blue-700 font-label-md text-label-md px-2 py-1 rounded-lg">En cours</span>
+</div>
+<div class="flex items-center justify-between mt-4">
+<div class="flex items-center gap-2 text-outline">
+<span class="material-symbols-outlined text-sm">schedule</span>
+<span class="font-label-md text-label-md">2 oct. 2023</span>
+</div>
+<span class="material-symbols-outlined text-primary">arrow_forward_ios</span>
+</div>
+</div>
+<!-- Resolved Ticket (Greyed out) -->
+<div class="bg-surface-dim/50 p-4 rounded-xl border border-outline-variant opacity-70">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="font-label-lg text-label-lg text-on-surface">Mise à jour RIB refusée</h3>
+<p class="text-on-surface-variant font-label-md text-label-md">ID: #GP-83100</p>
+</div>
+<span class="bg-green-100 text-green-700 font-label-md text-label-md px-2 py-1 rounded-lg">Terminé</span>
+</div>
+<div class="flex items-center justify-between mt-4">
+<div class="flex items-center gap-2 text-outline">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+<span class="font-label-md text-label-md">Résolu le 28 sept.</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- FAB -->
+<button class="fixed right-6 bottom-24 bg-primary-container text-on-primary p-4 rounded-full shadow-lg hover:shadow-xl active:scale-95 transition-all flex items-center gap-2 z-40">
+<span class="material-symbols-outlined">add_comment</span>
+<span class="font-label-lg text-label-lg pr-2">Créer un ticket</span>
+</button>
+<!-- Bottom Navigation -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-surface border-t border-outline-variant">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-md text-label-md">Accueil</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1" href="#">
+<span class="material-symbols-outlined">route</span>
+<span class="font-label-md text-label-md">Missions</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-label-md text-label-md">Historique</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-md text-label-md">Revenus</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl px-3 py-1 scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-label-md text-label-md">Profil</span>
+</a>
+</nav>
+<!-- Micro-interaction for list item clicks -->
+<script>
+        document.querySelectorAll('.bg-surface-container-lowest').forEach(item => {
+            item.addEventListener('click', () => {
+                item.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    item.style.transform = 'scale(1)';
+                }, 100);
+            });
+        });
+    </script>
+</body></html>

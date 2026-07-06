@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Disponibilité - Gab'Pharma Livreur</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-variant": "#d7e6de",
+                    "secondary-container": "#a8f4b9",
+                    "surface-dim": "#ceded5",
+                    "secondary-fixed-dim": "#8cd79f",
+                    "secondary": "#206b3d",
+                    "surface-bright": "#eefdf4",
+                    "surface-container-high": "#dcece3",
+                    "on-surface-variant": "#3f4940",
+                    "surface-container-low": "#e8f7ef",
+                    "outline": "#6f7a6f",
+                    "on-secondary-container": "#287243",
+                    "error": "#ba1a1a",
+                    "on-primary-fixed": "#00210c",
+                    "primary-fixed": "#9df6b2",
+                    "inverse-surface": "#26332e",
+                    "on-error-container": "#93000a",
+                    "on-tertiary-fixed": "#001c3a",
+                    "tertiary-fixed-dim": "#a5c8ff",
+                    "inverse-primary": "#81d998",
+                    "inverse-on-surface": "#e5f4ec",
+                    "background": "#eefdf4",
+                    "on-tertiary": "#ffffff",
+                    "on-tertiary-container": "#bdd5ff",
+                    "surface": "#eefdf4",
+                    "on-primary-fixed-variant": "#005228",
+                    "primary": "#004f26",
+                    "on-surface": "#111e19",
+                    "on-background": "#111e19",
+                    "surface-container-highest": "#d7e6de",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary": "#004481",
+                    "primary-container": "#006a35",
+                    "tertiary-fixed": "#d4e3ff",
+                    "on-primary": "#ffffff",
+                    "on-tertiary-fixed-variant": "#004786",
+                    "outline-variant": "#bec9bd",
+                    "surface-container": "#e2f1e9",
+                    "on-secondary-fixed-variant": "#005229",
+                    "on-error": "#ffffff",
+                    "on-secondary": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter-mobile": "12px",
+                    "margin-mobile": "16px",
+                    "xl": "32px",
+                    "base": "8px",
+                    "lg": "24px",
+                    "touch-target-min": "48px",
+                    "md": "16px",
+                    "sm": "8px",
+                    "xs": "4px"
+            },
+            "fontFamily": {
+                    "body-lg": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "headline-sm": ["Inter"],
+                    "label-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "price-display": ["Inter"]
+            },
+            "fontSize": {
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-md": ["22px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                    "label-lg": ["14px", {"lineHeight": "20px", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "price-display": ["20px", {"lineHeight": "24px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #006a35;
+        }
+        .toggle-checkbox:checked + .toggle-label .toggle-dot {
+            transform: translateX(100%);
+            background-color: #ffffff;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #eefdf4;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen pb-24 text-on-surface">
+<!-- TopAppBar -->
+<header class="bg-surface shadow-sm sticky top-0 z-50">
+<div class="flex justify-between items-center w-full px-4 h-16 max-w-screen-xl mx-auto">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-[24px]">delivery_dining</span>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary">Disponibilité</h1>
+</div>
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container-high rounded-full border border-outline-variant">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-label-lg text-label-lg text-primary uppercase tracking-wider">EN LIGNE</span>
+</div>
+</div>
+</header>
+<main class="max-w-md mx-auto px-4 pt-6 space-y-6">
+<!-- Online Status Toggle Section -->
+<section class="glass-card p-6 rounded-xl shadow-sm border border-outline-variant">
+<div class="flex items-center justify-between mb-2">
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">Statut Actuel</span>
+<span class="font-body-md text-body-md text-on-surface-variant">Prêt à recevoir des commandes</span>
+</div>
+<div class="relative inline-block w-14 align-middle select-none transition duration-200 ease-in">
+<input checked="" class="toggle-checkbox absolute block w-8 h-8 rounded-full bg-white border-4 border-surface-variant appearance-none cursor-pointer focus:outline-none transition-all duration-300 left-0 checked:left-6" id="toggle" name="toggle" type="checkbox"/>
+<label class="toggle-label block overflow-hidden h-8 rounded-full bg-surface-variant cursor-pointer transition-colors duration-300" for="toggle"></label>
+</div>
+</div>
+<div class="mt-4 flex items-center justify-center p-3 rounded-lg bg-secondary-container text-on-secondary-container font-label-lg text-label-lg transition-all duration-500" id="status-badge">
+<span class="material-symbols-outlined mr-2">check_circle</span>
+                VOUS ÊTES EN LIGNE
+            </div>
+</section>
+<!-- Covered Zones Section -->
+<section class="space-y-4">
+<h2 class="font-headline-sm text-headline-sm text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined">map</span>
+                Zones couvertes
+            </h2>
+<div class="grid grid-cols-1 gap-3">
+<!-- Zone Card: Libreville Centre -->
+<label class="flex items-center p-4 bg-surface-container-lowest rounded-xl border-2 border-primary cursor-pointer transition-all hover:bg-surface-container">
+<input checked="" class="w-6 h-6 rounded border-outline text-primary focus:ring-primary" type="checkbox"/>
+<div class="ml-4 flex-grow">
+<span class="font-label-lg text-label-lg block">Libreville Centre</span>
+<span class="font-body-md text-body-md text-on-surface-variant">Forte demande • 45 pharmacies</span>
+</div>
+<span class="material-symbols-outlined text-primary">verified</span>
+</label>
+<!-- Zone Card: Akanda -->
+<label class="flex items-center p-4 bg-surface-container-lowest rounded-xl border border-outline-variant cursor-pointer transition-all hover:bg-surface-container">
+<input class="w-6 h-6 rounded border-outline text-primary focus:ring-primary" type="checkbox"/>
+<div class="ml-4 flex-grow">
+<span class="font-label-lg text-label-lg block">Akanda</span>
+<span class="font-body-md text-body-md text-on-surface-variant">Demande moyenne • 12 pharmacies</span>
+</div>
+</label>
+<!-- Zone Card: Owendo -->
+<label class="flex items-center p-4 bg-surface-container-lowest rounded-xl border border-outline-variant cursor-pointer transition-all hover:bg-surface-container">
+<input class="w-6 h-6 rounded border-outline text-primary focus:ring-primary" type="checkbox"/>
+<div class="ml-4 flex-grow">
+<span class="font-label-lg text-label-lg block">Owendo</span>
+<span class="font-body-md text-body-md text-on-surface-variant">Secteur Portuaire • 8 pharmacies</span>
+</div>
+</label>
+<!-- Zone Card: SNI -->
+<label class="flex items-center p-4 bg-surface-container-lowest rounded-xl border border-outline-variant cursor-pointer transition-all hover:bg-surface-container">
+<input class="w-6 h-6 rounded border-outline text-primary focus:ring-primary" type="checkbox"/>
+<div class="ml-4 flex-grow">
+<span class="font-label-lg text-label-lg block">SNI / Angondjé</span>
+<span class="font-body-md text-body-md text-on-surface-variant">Zone Résidentielle • 15 pharmacies</span>
+</div>
+</label>
+</div>
+</section>
+<!-- Map Preview -->
+<section class="space-y-3">
+<div class="relative w-full h-48 rounded-2xl overflow-hidden shadow-md border-2 border-surface-container-highest">
+<div class="absolute inset-0 bg-surface-dim" data-alt="A highly detailed architectural map visualization of Libreville, Gabon, showing distinct neighborhood districts like Akanda and Owendo highlighted in translucent emerald green. The map style is clean, corporate, and minimalist, following Material Design 3 guidelines with high-contrast road networks and subtle pharmacy icons marking key pickup points. Professional lighting with soft ambient occlusion and a sophisticated color palette of deep greens and light surface tones." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDMvbNrJgZqmKJYiG5aZVkvQG4hk6L_hsR4jK7_YLTWIgIj2RghYodEXSO6Gy4pRTVZlSr0cZLQWG7csOvXzvbKG5nlMBwLF_e7kF3Uz_p4UxDusRBHg0d-SRYwZeh5aj6_Y05HWhRnbuVcrYa4RlufUKaw7CXW9adAZQeFLFtFh4D7O7oRMjEnRxkOmSXIKj0xrCi8Rbyu3SP2nZllpgkKSX8ho03fh0yAHDkB4_UEUB8jbcKX4uLn')"></div>
+<!-- Interactive Elements Over Map -->
+<div class="absolute top-4 right-4 bg-surface/90 backdrop-blur-md p-2 rounded-lg flex flex-col gap-2">
+<button class="w-10 h-10 flex items-center justify-center bg-surface-container-highest rounded-md shadow-sm">
+<span class="material-symbols-outlined">add</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center bg-surface-container-highest rounded-md shadow-sm">
+<span class="material-symbols-outlined">remove</span>
+</button>
+</div>
+<div class="absolute bottom-4 left-4 right-4">
+<div class="bg-primary-container text-on-primary-container px-4 py-2 rounded-full text-center shadow-lg font-label-lg text-label-lg flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">location_on</span>
+                        Zone active: Libreville Centre
+                    </div>
+</div>
+</div>
+<!-- Warning/Note -->
+<div class="flex gap-3 p-4 bg-tertiary-fixed text-on-tertiary-fixed-variant rounded-xl border border-tertiary-fixed-dim">
+<span class="material-symbols-outlined shrink-0">info</span>
+<p class="font-body-md text-body-md">
+                    Le changement de zone nécessite une validation par le support logistique. Temps d'attente moyen : <span class="font-bold">5 min</span>.
+                </p>
+</div>
+</section>
+<!-- Action Button -->
+<button class="w-full h-[56px] bg-primary text-on-primary font-bold rounded-full shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-transform">
+            Mettre à jour ma zone
+            <span class="material-symbols-outlined">sync</span>
+</button>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-surface border-t border-outline-variant shadow-lg">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-md text-label-md">Accueil</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl px-4 py-2 transition-transform active:scale-90" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">route</span>
+<span class="font-label-md text-label-md font-bold">Missions</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-label-md text-label-md">Historique</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-md text-label-md">Revenus</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-md text-label-md">Profil</span>
+</a>
+</nav>
+<script>
+        // Micro-interaction for status toggle
+        const toggle = document.getElementById('toggle');
+        const badge = document.getElementById('status-badge');
+        
+        toggle.addEventListener('change', function() {
+            if (this.checked) {
+                badge.classList.remove('bg-error-container', 'text-on-error-container');
+                badge.classList.add('bg-secondary-container', 'text-on-secondary-container');
+                badge.innerHTML = '<span class="material-symbols-outlined mr-2">check_circle</span> VOUS ÊTES EN LIGNE';
+            } else {
+                badge.classList.remove('bg-secondary-container', 'text-on-secondary-container');
+                badge.classList.add('bg-error-container', 'text-on-error-container');
+                badge.innerHTML = '<span class="material-symbols-outlined mr-2">do_not_disturb_on</span> VOUS ÊTES HORS LIGNE';
+            }
+        });
+
+        // Toggle Visual selection for checkboxes
+        document.querySelectorAll('label input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const parent = this.closest('label');
+                if (this.checked) {
+                    parent.classList.add('border-primary');
+                    parent.classList.remove('border-outline-variant');
+                } else {
+                    parent.classList.remove('border-primary');
+                    parent.classList.add('border-outline-variant');
+                }
+            });
+        });
+    </script>
+</body></html>

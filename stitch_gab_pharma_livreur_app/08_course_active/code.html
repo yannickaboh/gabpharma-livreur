@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+
+<html lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Gab'Pharma Livreur - Course Active</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-variant": "#d7e6de",
+                    "secondary-container": "#a8f4b9",
+                    "surface-dim": "#ceded5",
+                    "secondary-fixed-dim": "#8cd79f",
+                    "secondary": "#206b3d",
+                    "surface-bright": "#eefdf4",
+                    "surface-container-high": "#dcece3",
+                    "on-surface-variant": "#3f4940",
+                    "surface-tint": "#076d38",
+                    "on-primary-container": "#8fe7a5",
+                    "primary-fixed-dim": "#81d998",
+                    "on-secondary-fixed": "#00210d",
+                    "secondary-fixed": "#a8f4b9",
+                    "error-container": "#ffdad6",
+                    "tertiary-container": "#005caa",
+                    "surface-container-low": "#e8f7ef",
+                    "outline": "#6f7a6f",
+                    "on-secondary-container": "#287243",
+                    "error": "#ba1a1a",
+                    "on-primary-fixed": "#00210c",
+                    "primary-fixed": "#9df6b2",
+                    "inverse-surface": "#26332e",
+                    "on-error-container": "#93000a",
+                    "on-tertiary-fixed": "#001c3a",
+                    "tertiary-fixed-dim": "#a5c8ff",
+                    "inverse-primary": "#81d998",
+                    "inverse-on-surface": "#e5f4ec",
+                    "background": "#eefdf4",
+                    "on-tertiary": "#ffffff",
+                    "on-tertiary-container": "#bdd5ff",
+                    "surface": "#eefdf4",
+                    "on-primary-fixed-variant": "#005228",
+                    "primary": "#004f26",
+                    "on-surface": "#111e19",
+                    "on-background": "#111e19",
+                    "surface-container-highest": "#d7e6de",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary": "#004481",
+                    "primary-container": "#006a35",
+                    "tertiary-fixed": "#d4e3ff",
+                    "on-primary": "#ffffff",
+                    "on-tertiary-fixed-variant": "#004786",
+                    "outline-variant": "#bec9bd",
+                    "surface-container": "#e2f1e9",
+                    "on-secondary-fixed-variant": "#005229",
+                    "on-error": "#ffffff",
+                    "on-secondary": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter-mobile": "12px",
+                    "margin-mobile": "16px",
+                    "xl": "32px",
+                    "base": "8px",
+                    "lg": "24px",
+                    "touch-target-min": "48px",
+                    "md": "16px",
+                    "sm": "8px",
+                    "xs": "4px"
+            },
+            "fontFamily": {
+                    "body-lg": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "headline-sm": ["Inter"],
+                    "label-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "price-display": ["Inter"]
+            },
+            "fontSize": {
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-md": ["22px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                    "label-lg": ["14px", {"lineHeight": "20px", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "price-display": ["20px", {"lineHeight": "24px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-otp-input:focus {
+            border-color: #004f26;
+            box-shadow: 0 0 0 4px rgba(0, 106, 53, 0.1);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body-lg text-on-surface min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="bg-surface dark:bg-surface-container-highest shadow-sm fixed top-0 left-0 right-0 z-40 h-16">
+<div class="flex justify-between items-center w-full px-4 h-full max-w-screen-xl mx-auto">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed" style="font-size: 28px;">delivery_dining</span>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary dark:text-primary-fixed">Course en cours</h1>
+</div>
+<div class="bg-primary-container text-on-primary px-3 py-1 rounded-full text-label-lg font-label-lg flex items-center gap-1 animate-pulse">
+<span class="w-2 h-2 bg-white rounded-full"></span>
+                EN LIGNE
+            </div>
+</div>
+</header>
+<main class="pt-20 px-4 max-w-md mx-auto space-y-6">
+<!-- Status Banner / Timeline -->
+<section class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-outline-variant/30">
+<div class="flex justify-between items-center mb-6 px-2">
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<span class="text-label-md font-label-md text-primary">Assigné</span>
+</div>
+<div class="flex-1 h-[2px] bg-primary mb-6"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<span class="text-label-md font-label-md text-primary">Récupéré</span>
+</div>
+<div class="flex-1 h-[2px] bg-primary mb-6"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-10 h-10 rounded-full bg-primary ring-4 ring-primary/20 flex items-center justify-center text-white">
+<span class="material-symbols-outlined text-[24px]">route</span>
+</div>
+<span class="text-label-md font-label-md text-primary font-bold">En transit</span>
+</div>
+<div class="flex-1 h-[2px] bg-outline-variant mb-6"></div>
+<div class="flex flex-col items-center gap-2 opacity-40">
+<div class="w-8 h-8 rounded-full bg-outline-variant flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined text-[18px]">inventory_2</span>
+</div>
+<span class="text-label-md font-label-md">Livré</span>
+</div>
+</div>
+<!-- Client Info Card -->
+<div class="bg-surface-container-low p-4 rounded-lg flex items-center gap-4">
+<div class="w-14 h-14 rounded-full bg-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-secondary-container text-3xl">person</span>
+</div>
+<div class="flex-1">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Mme. Obame</h2>
+<p class="text-label-lg font-label-lg text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">phone</span> +241 07 00 00 00
+                    </p>
+</div>
+</div>
+</section>
+<!-- Route Details Card -->
+<section class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-md border border-primary/10">
+<!-- Map Placeholder -->
+<div class="w-full h-48 bg-surface-dim relative overflow-hidden" data-alt="A detailed digital map view of Libreville, Gabon, showing a simplified street layout with a green route line connecting Pharmacie du Grand Bouquet to the Quartier Louis residential area. The aesthetic is modern and clean, utilizing a professional Material Design 3 style with soft greens and neutral grays, highlighting the urban movement of a delivery vehicle in high-contrast light-mode conditions." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD5ZHSLCeCEO1UzdVPaqVSU32aH5PIi2-q_XCyxfaRc-equD21onmI_Na25NYm9fcbSFdCbdUVW7HBITS8DnK5xosGnU21RUjxDy_Yc3Bnz7XMkbGqyb2fpJGKqFds7c51o0ATnmB9AzuGThJZ0GQEwi8HYnurLbI_ON7A_qzb2OVLS07LPufHLKFO4tO5rUxA3xgXisuwSJjVZPutf-cdFvsdic8tgNRinsJ8yid12QiE64YqqPH8E')">
+<div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+<div class="absolute bottom-3 left-3 flex gap-2">
+<span class="bg-white/90 backdrop-blur px-2 py-1 rounded-lg text-label-md font-label-md shadow-sm">12 min restantes</span>
+</div>
+</div>
+<div class="p-4 space-y-4">
+<div class="flex gap-4">
+<div class="flex flex-col items-center gap-1 pt-1">
+<span class="material-symbols-outlined text-primary text-[20px]">store</span>
+<div class="w-[2px] flex-1 bg-outline-variant border-dashed border-l-2"></div>
+<span class="material-symbols-outlined text-error text-[20px]">location_on</span>
+</div>
+<div class="flex-1 space-y-4">
+<div>
+<span class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">Ramassage</span>
+<p class="font-body-lg text-body-lg font-semibold">Pharmacie du Grand Bouquet</p>
+</div>
+<div>
+<span class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">Livraison</span>
+<p class="font-body-lg text-body-lg font-semibold text-primary">Quartier Louis, Libreville</p>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3 pt-2">
+<button class="flex items-center justify-center gap-2 bg-tertiary text-on-tertiary py-4 rounded-xl font-label-lg hover:brightness-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined">directions</span>
+                        Ouvrir Navigation
+                    </button>
+<button class="flex items-center justify-center gap-2 border-2 border-outline-variant text-on-surface-variant py-4 rounded-xl font-label-lg hover:bg-surface-variant transition-all">
+<span class="material-symbols-outlined">call</span>
+                        Appeler
+                    </button>
+</div>
+</div>
+</section>
+<!-- Delivery Confirmation Area (OTP) -->
+<section class="bg-surface-container-high p-6 rounded-2xl border-2 border-primary-container shadow-lg space-y-6">
+<div class="text-center">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-1">Confirmation de remise</h3>
+<p class="text-body-md font-body-md text-on-surface-variant">Saisissez le code OTP reçu par la cliente</p>
+</div>
+<div class="flex justify-center gap-3">
+<input class="w-14 h-16 text-center text-2xl font-bold bg-surface-container-lowest border-2 border-outline-variant rounded-xl active-otp-input outline-none transition-all" maxlength="1" type="text"/>
+<input class="w-14 h-16 text-center text-2xl font-bold bg-surface-container-lowest border-2 border-outline-variant rounded-xl active-otp-input outline-none transition-all" maxlength="1" type="text"/>
+<input class="w-14 h-16 text-center text-2xl font-bold bg-surface-container-lowest border-2 border-outline-variant rounded-xl active-otp-input outline-none transition-all" maxlength="1" type="text"/>
+<input class="w-14 h-16 text-center text-2xl font-bold bg-surface-container-lowest border-2 border-outline-variant rounded-xl active-otp-input outline-none transition-all" maxlength="1" type="text"/>
+</div>
+<div class="flex flex-col gap-3">
+<button class="w-full bg-primary-container text-white py-4 rounded-full font-label-lg text-lg flex items-center justify-center gap-2 shadow-md hover:brightness-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">task_alt</span>
+                    Valider la remise (OTP)
+                </button>
+<button class="w-full py-2 text-label-lg font-label-lg text-on-surface-variant flex items-center justify-center gap-2 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">refresh</span>
+                    Renvoyer OTP (Amber)
+                </button>
+</div>
+</section>
+<!-- Problem Reporting -->
+<div class="pt-4">
+<button class="w-full flex items-center justify-center gap-2 text-error font-label-lg py-3 rounded-xl border border-error/20 hover:bg-error-container transition-colors">
+<span class="material-symbols-outlined">report_problem</span>
+                Signaler un problème
+            </button>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-surface dark:bg-surface-container-highest border-t border-outline-variant dark:border-outline shadow-lg">
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-3 py-1 hover:bg-surface-variant dark:hover:bg-on-surface-variant/10 rounded-xl transition-all">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-md text-label-md">Accueil</span>
+</button>
+<button class="flex flex-col items-center justify-center bg-secondary-container dark:bg-secondary-fixed-dim text-on-secondary-container dark:text-on-secondary-fixed rounded-xl px-3 py-1 scale-90 duration-200">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">route</span>
+<span class="font-label-md text-label-md">Missions</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-3 py-1 hover:bg-surface-variant dark:hover:bg-on-surface-variant/10 rounded-xl transition-all">
+<span class="material-symbols-outlined">history</span>
+<span class="font-label-md text-label-md">Historique</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-3 py-1 hover:bg-surface-variant dark:hover:bg-on-surface-variant/10 rounded-xl transition-all">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-md text-label-md">Revenus</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-3 py-1 hover:bg-surface-variant dark:hover:bg-on-surface-variant/10 rounded-xl transition-all">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-md text-label-md">Profil</span>
+</button>
+</nav>
+<script>
+        // Micro-interaction for OTP inputs
+        const otpInputs = document.querySelectorAll('.active-otp-input');
+        otpInputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                if (e.target.value.length === 1 && index < otpInputs.length - 1) {
+                    otpInputs[index + 1].focus();
+                }
+            });
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                    otpInputs[index - 1].focus();
+                }
+            });
+        });
+
+        // Interactive states for buttons
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.classList.add('scale-95');
+                setTimeout(() => this.classList.remove('scale-95'), 150);
+            });
+        });
+    </script>
+</body></html>
