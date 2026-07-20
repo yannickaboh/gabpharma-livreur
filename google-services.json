@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "175902119418",
+    "project_id": "gabpharma-fcm",
+    "storage_bucket": "gabpharma-fcm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:175902119418:android:3ad965e4dec60c79d18043",
+        "android_client_info": {
+          "package_name": "ga.gabpharma.gabpharma_livreur"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAIqdf4lyV6nU-cSNaCIZH2BMjDnb09n4o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:175902119418:android:dcd0e611c89b505cd18043",
+        "android_client_info": {
+          "package_name": "ga.gabpharma.gabpharma_patient"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAIqdf4lyV6nU-cSNaCIZH2BMjDnb09n4o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
