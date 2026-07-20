@@ -20,15 +20,24 @@ class _CourierShellState extends State<CourierShell> {
         online: online,
         onOnlineChanged: (value) => setState(() => online = value),
       ),
-      const AvailableDeliveries(),
-      const DeliveryHistory(),
-      const EarningsScreen(),
+      AvailableDeliveries(
+        online: online,
+        onOnlineChanged: (value) => setState(() => online = value),
+      ),
+      DeliveryHistory(
+        online: online,
+        onOnlineChanged: (value) => setState(() => online = value),
+      ),
+      EarningsScreen(
+        online: online,
+        onOnlineChanged: (value) => setState(() => online = value),
+      ),
       const CourierProfile(),
     ];
     return Scaffold(
       body: Column(
         children: [
-          const DemoBanner(),
+          const SafeArea(bottom: false, child: DemoBanner()),
           Expanded(
             child: IndexedStack(index: index, children: pages),
           ),
@@ -70,266 +79,1669 @@ class CourierHome extends StatelessWidget {
   final bool online;
   final ValueChanged<bool> onOnlineChanged;
 
+  void _showUpdateInfo(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mise à jour disponible'),
+        content: const Text(
+          'Version 2.4.1 disponible avec de nouveaux tracés GPS. '
+          'La mise à jour se fait depuis le Play Store.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => SafeArea(
+  Widget build(BuildContext context) => Column(
+    children: [
+      _HomeHeader(online: online, onToggle: () => onOnlineChanged(!online)),
+      Expanded(
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Bonjour, Junior',
-                        style: TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.w800),
+                        'Bonjour,',
+                        style: TextStyle(color: GabColors.muted),
                       ),
-                      Text('Une course active vous attend'),
-                    ],
-                  ),
-                ),
-                Switch(value: online, onChanged: onOnlineChanged),
-                Text(
-                  online ? 'En ligne' : 'Hors ligne',
-                  style: TextStyle(
-                    color: online ? GabColors.primary : GabColors.muted,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-            const SectionTitle('Course active'),
-            Card(
-              color: GabColors.primary,
-              child: InkWell(
-                onTap: () => Navigator.pushNamed(context, '/active-delivery'),
-                borderRadius: BorderRadius.circular(16),
-                child: const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      StatusPill('Affectée', color: Colors.white),
-                      SizedBox(height: 18),
                       Text(
-                        'Pharmacie du Centre',
+                        'Jean-Paul Mba',
                         style: TextStyle(
-                          color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
+                          color: GabColors.ink,
                         ),
-                      ),
-                      Text(
-                        'Collecte à Libreville Centre',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                      SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Icon(Icons.location_on_outlined, color: Colors.white),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Destination : Akanda',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          Icon(Icons.chevron_right, color: Colors.white),
-                        ],
                       ),
                     ],
                   ),
                 ),
-              ),
-            ),
-            const SectionTitle('Aujourd’hui'),
-            const Row(
-              children: [
-                Expanded(child: _Metric('3', 'Terminées')),
-                SizedBox(width: 12),
-                Expanded(child: _Metric('9 600', 'FCFA générés')),
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: GabColors.primary, width: 2),
+                    color: GabColors.softGreen,
+                  ),
+                  child: const Icon(Icons.person, color: GabColors.primary),
+                ),
               ],
             ),
-            const SectionTitle('Alertes'),
-            Card(
-              child: ListTile(
-                onTap: () => Navigator.pushNamed(context, '/documents'),
-                leading:
-                    const Icon(Icons.badge_outlined, color: GabColors.warning),
-                title: const Text('Document bientôt expiré'),
-                subtitle: const Text(
-                  'Déposez une nouvelle version avant le 20/07.',
-                ),
-                trailing: const Icon(Icons.chevron_right),
-              ),
+            const SizedBox(height: 24),
+            _ActiveCourseCard(
+              onTap: () => Navigator.pushNamed(context, '/active-delivery'),
+              onStartRoute: () => Navigator.pushNamed(context, '/map'),
             ),
-          ],
-        ),
-      );
-}
-
-class _Metric extends StatelessWidget {
-  const _Metric(this.value, this.label);
-  final String value;
-  final String label;
-  @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style:
-                    const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
-              ),
-              Text(label),
-            ],
-          ),
-        ),
-      );
-}
-
-class AvailableDeliveries extends StatelessWidget {
-  const AvailableDeliveries({super.key});
-  @override
-  Widget build(BuildContext context) => SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text('Courses', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 4),
-            const Text('Consultation uniquement · affectation par le Staff'),
-            const SectionTitle('Compatibles avec vos zones'),
-            for (final delivery in const [
-              ('Centre → Akanda', '2 400 FCFA'),
-              ('Owendo → Libreville', '3 100 FCFA'),
-            ])
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Card(
-                  child: ListTile(
-                    onTap: () =>
-                        Navigator.pushNamed(context, '/available-detail'),
-                    leading: const CircleAvatar(
-                      backgroundColor: GabColors.softGreen,
-                      child:
-                          Icon(Icons.delivery_dining, color: GabColors.primary),
-                    ),
-                    title: Text(
-                      delivery.$1,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    subtitle: const Text('Pharmacie partenaire · aujourd’hui'),
-                    trailing: Text(delivery.$2),
+            const SizedBox(height: 24),
+            const Row(
+              children: [
+                Expanded(
+                  child: _StatCard(
+                    icon: Icons.task_alt,
+                    iconColor: GabColors.secondary,
+                    caption: "Aujourd'hui",
+                    value: '08',
+                    label: 'Courses terminées',
                   ),
                 ),
-              ),
-          ],
-        ),
-      );
-}
-
-class DeliveryHistory extends StatelessWidget {
-  const DeliveryHistory({super.key});
-  @override
-  Widget build(BuildContext context) => SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text('Historique',
-                style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 16),
-            for (final delivery in const [
-              ('GP-L098', 'Livrée', '06/07/2026'),
-              ('GP-L097', 'Livrée', '05/07/2026'),
-              ('GP-L096', 'Annulée', '05/07/2026'),
-            ])
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Card(
-                  child: ListTile(
-                    title: Text(
-                      'Course ${delivery.$1}',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    subtitle: Text('Libreville · ${delivery.$3}'),
-                    trailing: StatusPill(
-                      delivery.$2,
-                      color: delivery.$2 == 'Annulée'
-                          ? GabColors.danger
-                          : GabColors.primary,
+                SizedBox(width: 12),
+                Expanded(
+                  child: _StatCard(
+                    icon: Icons.payments_outlined,
+                    iconColor: GabColors.routeBlue,
+                    caption: 'Gains',
+                    value: '42.500',
+                    label: 'FCFA cumulés',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'ALERTES & INFOS',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                    color: GabColors.muted,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/notifications'),
+                  child: const Text(
+                    'Tout voir',
+                    style: TextStyle(
+                      color: GabColors.primary,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-              ),
-          ],
-        ),
-      );
-}
-
-class EarningsScreen extends StatelessWidget {
-  const EarningsScreen({super.key});
-  @override
-  Widget build(BuildContext context) => SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text('Revenus', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 18),
-            const Card(
-              color: GabColors.primary,
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Column(
+              ],
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () => Navigator.pushNamed(context, '/documents'),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: GabColors.danger.withValues(alpha: 0.08),
+                  borderRadius: const BorderRadius.horizontal(
+                    right: Radius.circular(12),
+                  ),
+                  border: const Border(
+                    left: BorderSide(color: GabColors.danger, width: 4),
+                  ),
+                ),
+                child: const Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Solde actuel',
-                        style: TextStyle(color: Colors.white70)),
-                    SizedBox(height: 6),
-                    Text(
-                      '12 800 FCFA',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 30,
-                        fontWeight: FontWeight.w900,
+                    Icon(Icons.report_problem_outlined, color: GabColors.danger),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Assurance véhicule',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: GabColors.danger,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text.rich(
+                            TextSpan(
+                              style: TextStyle(color: GabColors.danger),
+                              children: [
+                                TextSpan(text: 'Votre document expire dans '),
+                                TextSpan(
+                                  text: '3 jours',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                TextSpan(text: '. Veuillez le renouveler.'),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    Text(
-                      'À reverser à Gab’Pharma',
-                      style: TextStyle(color: Colors.white),
                     ),
                   ],
                 ),
               ),
             ),
-            const SectionTitle('Écritures récentes'),
-            const Card(
-              child: Column(
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () => _showUpdateInfo(context),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCECE3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: GabColors.secondary.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.info,
+                        color: GabColors.secondary,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mise à jour disponible',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            'Version 2.4.1 disponible avec de nouveaux tracés GPS.',
+                            style: TextStyle(color: GabColors.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: GabColors.muted),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'ZONE ACTUELLE (LIBREVILLE)',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+                color: GabColors.muted,
+              ),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () => Navigator.pushNamed(context, '/availability'),
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                height: 150,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFBFE3D0), Color(0xFF8FCBAE)],
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    const Positioned(
+                      right: 16,
+                      top: 16,
+                      child: Icon(
+                        Icons.map_outlined,
+                        color: Colors.white70,
+                        size: 40,
+                      ),
+                    ),
+                    Positioned(
+                      left: 12,
+                      right: 12,
+                      bottom: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.circle,
+                              size: 10,
+                              color: GabColors.routeBlue,
+                            ),
+                            SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                'Akwango - En zone de forte demande',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({
+    required this.online,
+    required this.onToggle,
+    this.title = "Gab'Pharma Livreur",
+  });
+  final bool online;
+  final VoidCallback onToggle;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    elevation: 1,
+    shadowColor: Colors.black.withValues(alpha: 0.08),
+    child: SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: 64,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.delivery_dining,
+                color: GabColors.primary,
+                size: 30,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: GabColors.primary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              GestureDetector(
+                onTap: onToggle,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: online ? GabColors.softGreen : GabColors.background,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: GabColors.outlineVariant),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 9,
+                        height: 9,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: online
+                              ? GabColors.primary
+                              : GabColors.outlineVariant,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        online ? 'EN LIGNE' : 'HORS LIGNE',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          color: online ? GabColors.primary : GabColors.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _ActiveCourseCard extends StatelessWidget {
+  const _ActiveCourseCard({required this.onTap, required this.onStartRoute});
+  final VoidCallback onTap;
+  final VoidCallback onStartRoute;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: GabColors.primary,
+    borderRadius: BorderRadius.circular(16),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.route, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Destination',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              'Pharmacie du Bord de Mer',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8FE7A5),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'COURSE ACTIVE',
+                    style: TextStyle(
+                      color: GabColors.primary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.white24)),
+              ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Client',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          Text(
+                            'Mme. Obiang',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Temps estimé',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          Text(
+                            '12 min',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: onStartRoute,
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: GabColors.primary,
+                  shape: const StadiumBorder(),
+                ),
+                icon: const Icon(Icons.navigation_outlined),
+                label: const Text("Démarrer l'itinéraire"),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.icon,
+    required this.iconColor,
+    required this.caption,
+    required this.value,
+    required this.label,
+  });
+  final IconData icon;
+  final Color iconColor;
+  final String caption;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Icon(icon, color: iconColor, size: 20),
+            Text(
+              caption,
+              style: const TextStyle(fontSize: 11, color: GabColors.muted),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+        ),
+        Text(label, style: const TextStyle(fontSize: 11, color: GabColors.muted)),
+      ],
+    ),
+  );
+}
+
+class AvailableDeliveries extends StatelessWidget {
+  const AvailableDeliveries({
+    required this.online,
+    required this.onOnlineChanged,
+    super.key,
+  });
+  final bool online;
+  final ValueChanged<bool> onOnlineChanged;
+
+  static const _courses = [
+    (
+      pharmacy: 'Pharmacie de l\'Etoile',
+      zone: 'Akanda - Angondjé',
+      revenue: '1 500 FCFA',
+      distance: '2.4 km',
+    ),
+    (
+      pharmacy: 'Pharmacie du Pont',
+      zone: 'Libreville - Nzeng Ayong',
+      revenue: '2 200 FCFA',
+      distance: '5.1 km',
+    ),
+    (
+      pharmacy: 'Pharmacie Okala',
+      zone: 'Okala - Mikolongo',
+      revenue: '1 800 FCFA',
+      distance: '3.8 km',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      _HomeHeader(online: online, onToggle: () => onOnlineChanged(!online)),
+      Expanded(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+          children: [
+            const Text(
+              'Courses disponibles',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: GabColors.ink,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              "Consultez les commandes en attente d'attribution.",
+              style: TextStyle(color: GabColors.muted),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFA8F4B9).withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFF8CD79F)),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ListTile(
-                    title: Text('Course GP-L098'),
-                    subtitle: Text('Espèces · part plateforme 40 %'),
-                    trailing: Text('+1 600'),
+                  Icon(Icons.info, color: GabColors.secondary, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      "Affectation manuelle par le Staff Gab'Pharma. Les "
+                      'missions vous seront attribuées directement sur '
+                      'votre interface active.',
+                      style: TextStyle(color: GabColors.secondary),
+                    ),
                   ),
-                  Divider(height: 1),
-                  ListTile(
-                    title: Text('Course GP-L097'),
-                    subtitle: Text('Électronique · part livreur 40 %'),
-                    trailing: Text('−1 200'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (_courses.isEmpty)
+              const _EmptyCoursesState()
+            else
+              for (final course in _courses)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _AvailableCourseCard(
+                    pharmacy: course.pharmacy,
+                    zone: course.zone,
+                    revenue: course.revenue,
+                    distance: course.distance,
+                    onTap: () =>
+                        Navigator.pushNamed(context, '/available-detail'),
                   ),
+                ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _AvailableCourseCard extends StatelessWidget {
+  const _AvailableCourseCard({
+    required this.pharmacy,
+    required this.zone,
+    required this.revenue,
+    required this.distance,
+    required this.onTap,
+  });
+  final String pharmacy;
+  final String zone;
+  final String revenue;
+  final String distance;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(14),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: const Border(
+            left: BorderSide(color: GabColors.primary, width: 4),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        pharmacy,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: GabColors.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            size: 16,
+                            color: GabColors.muted,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            zone,
+                            style: const TextStyle(
+                              color: GabColors.muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: GabColors.outlineVariant.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'En attente',
+                    style: TextStyle(fontSize: 11, color: GabColors.muted),
+                  ),
+                ),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(height: 1, color: GabColors.outlineVariant),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'REVENU EST.',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                          color: GabColors.muted,
+                        ),
+                      ),
+                      Text(
+                        revenue,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: GabColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'DISTANCE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                        color: GabColors.muted,
+                      ),
+                    ),
+                    Text(
+                      distance,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: GabColors.ink,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _EmptyCoursesState extends StatelessWidget {
+  const _EmptyCoursesState();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 32),
+    child: Column(
+      children: [
+        Container(
+          width: 88,
+          height: 88,
+          decoration: BoxDecoration(
+            color: GabColors.outlineVariant.withValues(alpha: 0.25),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.pending_actions,
+            size: 36,
+            color: GabColors.muted,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            'Plus aucune course en attente pour le moment dans votre secteur.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              color: GabColors.muted,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+enum _HistoryFilter { tout, livre, annule }
+
+typedef _HistoryEntry = ({
+  String date,
+  String pharmacy,
+  String amount,
+  String time,
+  bool success,
+});
+
+class DeliveryHistory extends StatefulWidget {
+  const DeliveryHistory({
+    required this.online,
+    required this.onOnlineChanged,
+    super.key,
+  });
+  final bool online;
+  final ValueChanged<bool> onOnlineChanged;
+
+  @override
+  State<DeliveryHistory> createState() => _DeliveryHistoryState();
+}
+
+class _DeliveryHistoryState extends State<DeliveryHistory> {
+  _HistoryFilter _filter = _HistoryFilter.tout;
+
+  static const List<_HistoryEntry> _entries = [
+    (
+      date: "Aujourd'hui, 22 Juin 2026",
+      pharmacy: 'Pharmacie Okala',
+      amount: '2 000 FCFA',
+      time: 'Livré à 14:32',
+      success: true,
+    ),
+    (
+      date: "Aujourd'hui, 22 Juin 2026",
+      pharmacy: 'Pharmacie des Facultés',
+      amount: '0 FCFA',
+      time: 'Annulé à 11:15',
+      success: false,
+    ),
+    (
+      date: 'Hier, 21 Juin 2026',
+      pharmacy: "Pharmacie d'Akanda",
+      amount: '3 500 FCFA',
+      time: 'Livré à 18:45',
+      success: true,
+    ),
+    (
+      date: 'Hier, 21 Juin 2026',
+      pharmacy: 'Pharmacie du Pont',
+      amount: '1 500 FCFA',
+      time: 'Livré à 09:20',
+      success: true,
+    ),
+  ];
+
+  void _showEntryDetails(_HistoryEntry entry) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(entry.pharmacy),
+        content: Text(
+          '${entry.success ? 'Livré' : 'Annulé'} · ${entry.time}\n'
+          'Montant : ${entry.amount}\n${entry.date}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMonthPicker() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Sélection par mois disponible une fois l’historique complet connecté à l’API.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _entries.where((entry) => switch (_filter) {
+      _HistoryFilter.tout => true,
+      _HistoryFilter.livre => entry.success,
+      _HistoryFilter.annule => !entry.success,
+    }).toList();
+    final groups = <String, List<_HistoryEntry>>{};
+    for (final entry in filtered) {
+      groups.putIfAbsent(entry.date, () => []).add(entry);
+    }
+
+    return Column(
+      children: [
+        _HomeHeader(
+          title: 'Historique',
+          online: widget.online,
+          onToggle: () => widget.onOnlineChanged(!widget.online),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+            children: [
+              Row(
+                children: const [
+                  Expanded(child: _HistoryStatCard('Total Courses', '148')),
+                  SizedBox(width: 12),
+                  Expanded(child: _HistoryStatCard('Ce Mois', '42')),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFA8F4B9),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Revenus Totaux',
+                      style: TextStyle(
+                        color: Color(0xFF287243),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '296 000 FCFA',
+                      style: TextStyle(
+                        color: Color(0xFF287243),
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    _FilterPill(
+                      label: 'Tout',
+                      selected: _filter == _HistoryFilter.tout,
+                      onTap: () => setState(() => _filter = _HistoryFilter.tout),
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterPill(
+                      label: 'Livré',
+                      selected: _filter == _HistoryFilter.livre,
+                      onTap: () => setState(() => _filter = _HistoryFilter.livre),
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterPill(
+                      label: 'Annulé',
+                      selected: _filter == _HistoryFilter.annule,
+                      onTap: () => setState(() => _filter = _HistoryFilter.annule),
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterPill(
+                      label: 'Juin 2026',
+                      icon: Icons.calendar_month,
+                      selected: false,
+                      onTap: _showMonthPicker,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (filtered.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: Text(
+                      'Aucune course pour ce filtre.',
+                      style: TextStyle(color: GabColors.muted),
+                    ),
+                  ),
+                )
+              else
+                for (final group in groups.entries) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                    child: Text(
+                      group.key,
+                      style: const TextStyle(
+                        color: GabColors.muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  for (final entry in group.value)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _HistoryEntryCard(
+                        entry: entry,
+                        onTap: () => _showEntryDetails(entry),
+                      ),
+                    ),
+                ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HistoryStatCard extends StatelessWidget {
+  const _HistoryStatCard(this.label, this.value);
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: GabColors.muted, fontSize: 12)),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: GabColors.primary,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _FilterPill extends StatelessWidget {
+  const _FilterPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.icon,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: selected ? GabColors.primary : const Color(0xFFDCECE3),
+    borderRadius: BorderRadius.circular(999),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 16, color: selected ? Colors.white : GabColors.muted),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : GabColors.muted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _HistoryEntryCard extends StatelessWidget {
+  const _HistoryEntryCard({required this.entry, required this.onTap});
+  final _HistoryEntry entry;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(16),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: entry.success
+                    ? GabColors.secondary.withValues(alpha: 0.12)
+                    : GabColors.danger.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                entry.success ? Icons.task_alt : Icons.cancel,
+                color: entry.success ? GabColors.secondary : GabColors.danger,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          entry.pharmacy,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        entry.amount,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: entry.success ? GabColors.primary : GabColors.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        entry.time,
+                        style: const TextStyle(color: GabColors.muted, fontSize: 12),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: entry.success
+                              ? GabColors.secondary.withValues(alpha: 0.15)
+                              : GabColors.danger.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          entry.success ? 'SUCCÈS' : 'ANNULÉ',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                            color: entry.success ? GabColors.secondary : GabColors.danger,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: GabColors.outlineVariant),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+enum _EarningsPeriod { quotidien, hebdomadaire }
+
+typedef _LedgerEntry = ({
+  String code,
+  String pharmacy,
+  String time,
+  String amount,
+  bool cash,
+  String method,
+  String driverShare,
+  String platformShare,
+});
+
+class EarningsScreen extends StatefulWidget {
+  const EarningsScreen({
+    required this.online,
+    required this.onOnlineChanged,
+    super.key,
+  });
+  final bool online;
+  final ValueChanged<bool> onOnlineChanged;
+
+  @override
+  State<EarningsScreen> createState() => _EarningsScreenState();
+}
+
+class _EarningsScreenState extends State<EarningsScreen> {
+  _EarningsPeriod _period = _EarningsPeriod.quotidien;
+
+  static const _entries = <_LedgerEntry>[
+    (
+      code: 'GP-9821',
+      pharmacy: 'Pharmacie du Centre',
+      time: '14:20',
+      amount: '+1 500 FCFA',
+      cash: true,
+      method: 'ESPÈCES',
+      driverShare: '900 FCFA',
+      platformShare: '600 FCFA',
+    ),
+    (
+      code: 'GP-9744',
+      pharmacy: "Grande Pharma d'Okala",
+      time: '11:05',
+      amount: '+2 200 FCFA',
+      cash: false,
+      method: 'AIRTEL MONEY',
+      driverShare: '1 320 FCFA',
+      platformShare: '880 FCFA',
+    ),
+    (
+      code: 'GP-9712',
+      pharmacy: "Pharmacie de l'Amitié",
+      time: 'Hier',
+      amount: '+1 800 FCFA',
+      cash: true,
+      method: 'ESPÈCES',
+      driverShare: '1 080 FCFA',
+      platformShare: '720 FCFA',
+    ),
+  ];
+
+  void _showSplitInfo() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Répartition 60/40'),
+        content: const Text(
+          'Pour chaque course livrée, vous conservez 60 % du montant perçu. '
+          'Les 40 % restants reviennent à Gab’Pharma et sont soit reversés '
+          'par vous (paiement en espèces), soit versés directement par la '
+          'plateforme (paiement électronique).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Compris'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _requestPayout() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Demande de virement indisponible en démonstration — sera activée '
+          'avec la connexion au système de paiement Gab’Pharma.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isWeekly = _period == _EarningsPeriod.hebdomadaire;
+    final balance = isWeekly ? '68 200 FCFA' : '12 400 FCFA';
+    final cash = isWeekly ? '41 500 FCFA' : '8 500 FCFA';
+    final electronic = isWeekly ? '26 700 FCFA' : '3 900 FCFA';
+
+    return Column(
+      children: [
+        _HomeHeader(
+          title: 'Revenus',
+          online: widget.online,
+          onToggle: () => widget.onOnlineChanged(!widget.online),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: GabColors.primary,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Solde actuel',
+                      style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      balance,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 16),
+                          SizedBox(width: 8),
+                          Text('À reverser à Gab’Pharma', style: TextStyle(color: Colors.white, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE2F1E9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _PeriodTab(
+                        label: 'Quotidien',
+                        selected: !isWeekly,
+                        onTap: () => setState(() => _period = _EarningsPeriod.quotidien),
+                      ),
+                    ),
+                    Expanded(
+                      child: _PeriodTab(
+                        label: 'Hebdomadaire',
+                        selected: isWeekly,
+                        onTap: () => setState(() => _period = _EarningsPeriod.hebdomadaire),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: _EarningsBentoCard(
+                      icon: Icons.payments_outlined,
+                      iconColor: GabColors.primary,
+                      label: 'Espèces',
+                      value: cash,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _EarningsBentoCard(
+                      icon: Icons.contactless_outlined,
+                      iconColor: GabColors.routeBlue,
+                      label: 'Électronique',
+                      value: electronic,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Détails des gains (60/40)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  IconButton(
+                    onPressed: _showSplitInfo,
+                    icon: const Icon(Icons.info_outline, color: GabColors.muted),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              for (final entry in _entries)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _LedgerEntryCard(entry: entry),
+                ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _requestPayout,
+                  icon: const Icon(Icons.account_balance_outlined),
+                  label: const Text('Demander un virement'),
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PeriodTab extends StatelessWidget {
+  const _PeriodTab({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: selected ? Colors.white : Colors.transparent,
+    borderRadius: BorderRadius.circular(10),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: selected ? GabColors.primary : GabColors.muted,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _EarningsBentoCard extends StatelessWidget {
+  const _EarningsBentoCard({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+  });
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: iconColor, size: 20),
+            const SizedBox(width: 8),
+            Text(label, style: const TextStyle(color: GabColors.muted, fontSize: 12)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+        ),
+      ],
+    ),
+  );
+}
+
+class _LedgerEntryCard extends StatelessWidget {
+  const _LedgerEntryCard({required this.entry});
+  final _LedgerEntry entry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.3)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Course #${entry.code}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${entry.pharmacy} • ${entry.time}',
+                    style: const TextStyle(color: GabColors.muted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  entry.amount,
+                  style: const TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: entry.cash
+                        ? const Color(0xFFA8F4B9).withValues(alpha: 0.6)
+                        : GabColors.routeBlue.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    entry.method,
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                      color: entry.cash ? GabColors.secondary : GabColors.routeBlue,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const Divider(height: 1),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'VOTRE PART (60%)',
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: GabColors.muted, letterSpacing: 0.3),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(entry.driverShare, style: const TextStyle(color: GabColors.primary, fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'PLATEFORME (40%)',
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: GabColors.muted, letterSpacing: 0.3),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(entry.platformShare, style: const TextStyle(fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
           ],
         ),
-      );
+      ],
+    ),
+  );
 }
 
 class CourierProfile extends StatelessWidget {

@@ -19,31 +19,12 @@ class GabPharmaLivreurApp extends StatelessWidget {
       '/login': (_) => const LoginScreen(),
       '/verify': (_) => const VerifyScreen(),
       '/home': (_) => const CourierShell(),
-      '/password-reset': (_) => const SimpleFeatureScreen(
-        title: 'Mot de passe oublié',
-        icon: Icons.password,
-        description: 'Identification, code sécurisé et nouveau mot de passe.',
-      ),
-      '/available-detail': (_) => const SimpleFeatureScreen(
-        title: 'Course disponible',
-        icon: Icons.route_outlined,
-        description:
-            'Collecte à Libreville Centre, destination Akanda. Affectation exclusivement confirmée par le Staff.',
-      ),
+      '/password-reset': (_) => const PasswordResetScreen(),
+      '/available-detail': (_) => const AvailableCourseDetailScreen(),
       '/active-delivery': (_) => const ActiveDeliveryScreen(),
-      '/map': (_) => const SimpleFeatureScreen(
-        title: 'Carte et navigation',
-        icon: Icons.navigation_outlined,
-        description:
-            'Itinéraire vers la collecte ou la remise et ouverture de l’application de navigation du téléphone.',
-      ),
+      '/map': (_) => const NavigationMapScreen(),
       '/incident': (_) => const IncidentScreen(),
-      '/availability': (_) => const SimpleFeatureScreen(
-        title: 'Zones et disponibilité',
-        icon: Icons.map_outlined,
-        description:
-            'Libreville, Akanda et Owendo. Le statut en ligne conditionne les nouvelles affectations.',
-      ),
+      '/availability': (_) => const AvailabilityScreen(),
       '/documents': (_) => const SimpleFeatureScreen(
         title: 'Mes documents',
         icon: Icons.badge_outlined,

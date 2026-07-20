@@ -10,6 +10,7 @@ abstract final class GabColors {
   static const routeBlue = Color(0xFF1769AA);
   static const warning = Color(0xFF9A6700);
   static const danger = Color(0xFFBA1A1A);
+  static const outlineVariant = Color(0xFFBEC9BD);
 }
 
 ThemeData buildCourierTheme() {
@@ -42,12 +43,29 @@ ThemeData buildCourierTheme() {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),
-    inputDecorationTheme: const InputDecorationTheme(
+    inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(14)),
-        borderSide: BorderSide.none,
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        borderSide: const BorderSide(color: GabColors.outlineVariant),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        borderSide: const BorderSide(color: GabColors.outlineVariant),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        borderSide: const BorderSide(color: GabColors.primary, width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        borderSide: const BorderSide(color: GabColors.danger),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        borderSide: const BorderSide(color: GabColors.danger, width: 1.6),
       ),
     ),
   );
