@@ -25,12 +25,7 @@ class GabPharmaLivreurApp extends StatelessWidget {
       '/map': (_) => const NavigationMapScreen(),
       '/incident': (_) => const IncidentScreen(),
       '/availability': (_) => const AvailabilityScreen(),
-      '/documents': (_) => const SimpleFeatureScreen(
-        title: 'Mes documents',
-        icon: Icons.badge_outlined,
-        description:
-            'Document validé, remplacement en attente ou motif de refus. Toute nouvelle version est revue par le Staff.',
-      ),
+      '/documents': (_) => const DocumentsScreen(),
       '/notifications': (_) => const SimpleFeatureScreen(
         title: 'Notifications',
         icon: Icons.notifications_outlined,

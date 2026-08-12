@@ -2312,6 +2312,395 @@ class _ZoneMapPainter extends CustomPainter {
   bool shouldRepaint(covariant _ZoneMapPainter oldDelegate) => false;
 }
 
+enum _DocStatus { valide, enAttente, refuse }
+
+typedef _DocInfo = ({
+  String name,
+  IconData thumbnailIcon,
+  Color thumbnailColor,
+  _DocStatus status,
+  String? rejectionReason,
+});
+
+class DocumentsScreen extends StatefulWidget {
+  const DocumentsScreen({super.key});
+  @override
+  State<DocumentsScreen> createState() => _DocumentsScreenState();
+}
+
+class _DocumentsScreenState extends State<DocumentsScreen> {
+  static const _cni = (
+    name: 'CNI/Passeport',
+    thumbnailIcon: Icons.badge,
+    thumbnailColor: GabColors.primary,
+    status: _DocStatus.valide,
+    rejectionReason: null,
+  );
+  static const _permis = (
+    name: 'Permis de conduire',
+    thumbnailIcon: Icons.directions_car,
+    thumbnailColor: GabColors.routeBlue,
+    status: _DocStatus.enAttente,
+    rejectionReason: null,
+  );
+  static const _assuranceRefused = (
+    name: 'Assurance',
+    thumbnailIcon: Icons.description,
+    thumbnailColor: GabColors.danger,
+    status: _DocStatus.refuse,
+    rejectionReason: 'Refusé - Photo floue',
+  );
+  static const _assurancePending = (
+    name: 'Assurance',
+    thumbnailIcon: Icons.description,
+    thumbnailColor: GabColors.routeBlue,
+    status: _DocStatus.enAttente,
+    rejectionReason: null,
+  );
+
+  _DocInfo _assurance = _assuranceRefused;
+  bool _replacing = false;
+
+  void _previewDocument(String name) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(name),
+        content: const Text(
+          'Aperçu indisponible en démonstration — l’image du document sera '
+          'consultable une fois le stockage sécurisé connecté à l’API.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _replaceDocument() async {
+    if (_replacing) return;
+    setState(() => _replacing = true);
+    await Future<void>.delayed(const Duration(milliseconds: 1000));
+    if (!mounted) return;
+    setState(() {
+      _assurance = _assurancePending;
+      _replacing = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Nouveau document envoyé. Il sera vérifié par le Staff Gab’Pharma.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: GabColors.background,
+    appBar: AppBar(
+      backgroundColor: GabColors.background,
+      elevation: 0,
+      title: const Row(
+        children: [
+          Icon(Icons.delivery_dining, color: GabColors.primary, size: 26),
+          SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              'Mes Documents',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: GabColors.primary,
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+              ),
+            ),
+          ),
+        ],
+      ),
+      titleSpacing: 0,
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.circle, size: 8, color: GabColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                'EN LIGNE',
+                style: TextStyle(
+                  color: GabColors.primary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+    body: SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Profil Livreur',
+                            style: TextStyle(color: GabColors.muted, fontWeight: FontWeight.w600),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Complété à 65%',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.verified_user, color: GabColors.primary),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: const LinearProgressIndicator(
+                    value: 0.65,
+                    minHeight: 10,
+                    backgroundColor: Color(0xFFD7E6DE),
+                    valueColor: AlwaysStoppedAnimation(GabColors.primary),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Validez vos documents pour commencer à recevoir des courses à Libreville.',
+                  style: TextStyle(color: GabColors.muted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          _DocumentCard(doc: _cni, onPreview: () => _previewDocument(_cni.name)),
+          const SizedBox(height: 14),
+          _DocumentCard(doc: _permis, onPreview: () => _previewDocument(_permis.name)),
+          const SizedBox(height: 14),
+          _DocumentCard(
+            doc: _assurance,
+            onPreview: () => _previewDocument(_assurance.name),
+            onReplace: _replaceDocument,
+            replacing: _replacing,
+          ),
+          const SizedBox(height: 28),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'Conseils de validation',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Row(
+            children: [
+              Expanded(
+                child: _AdviceCard(
+                  icon: Icons.light_mode_outlined,
+                  title: 'Bon éclairage',
+                  description: 'Évitez les ombres sur le document.',
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _AdviceCard(
+                  icon: Icons.center_focus_weak,
+                  title: 'Mise au point',
+                  description: 'Le texte doit être parfaitement net.',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Gab’Pharma sécurise vos données conformément aux lois de protection '
+            'des données personnelles en vigueur.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: GabColors.muted, fontSize: 12),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _DocumentCard extends StatelessWidget {
+  const _DocumentCard({
+    required this.doc,
+    required this.onPreview,
+    this.onReplace,
+    this.replacing = false,
+  });
+  final _DocInfo doc;
+  final VoidCallback onPreview;
+  final VoidCallback? onReplace;
+  final bool replacing;
+
+  @override
+  Widget build(BuildContext context) {
+    final refused = doc.status == _DocStatus.refuse;
+    final (statusColor, statusLabel, statusIcon) = switch (doc.status) {
+      _DocStatus.valide => (GabColors.primary, 'Validé', Icons.check_circle),
+      _DocStatus.enAttente => (GabColors.routeBlue, 'En attente de vérification', Icons.schedule),
+      _DocStatus.refuse => (GabColors.danger, doc.rejectionReason ?? 'Refusé', Icons.error),
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: refused ? GabColors.danger.withValues(alpha: 0.4) : GabColors.outlineVariant.withValues(alpha: 0.3),
+          width: refused ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Stack(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: doc.thumbnailColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(doc.thumbnailIcon, color: doc.thumbnailColor.withValues(alpha: 0.6)),
+                  ),
+                  Positioned(
+                    right: 2,
+                    bottom: 2,
+                    child: Icon(statusIcon, size: 16, color: statusColor),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(doc.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            statusLabel,
+                            style: TextStyle(color: statusColor, fontWeight: FontWeight.w600, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (!refused)
+                IconButton(
+                  onPressed: onPreview,
+                  icon: const Icon(Icons.visibility_outlined, color: GabColors.muted),
+                ),
+            ],
+          ),
+          if (refused) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: GabColors.danger.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: GabColors.danger.withValues(alpha: 0.15)),
+              ),
+              child: const Text(
+                'Veuillez reprendre la photo. Assurez-vous que tous les textes '
+                'sont lisibles et qu’il n’y a pas de reflet.',
+                style: TextStyle(color: GabColors.danger, fontSize: 13, height: 1.3),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onReplace,
+                icon: replacing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.add_a_photo_outlined),
+                label: Text(replacing ? 'Envoi...' : 'Remplacer le document'),
+                style: FilledButton.styleFrom(shape: const StadiumBorder()),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AdviceCard extends StatelessWidget {
+  const _AdviceCard({required this.icon, required this.title, required this.description});
+  final IconData icon;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFE2F1E9),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: GabColors.primary),
+        const SizedBox(height: 8),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        const SizedBox(height: 2),
+        Text(description, style: const TextStyle(color: GabColors.muted, fontSize: 11)),
+      ],
+    ),
+  );
+}
+
 class SimpleFeatureScreen extends StatelessWidget {
   const SimpleFeatureScreen({
     required this.title,
