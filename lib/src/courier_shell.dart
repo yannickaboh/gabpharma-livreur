@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'core/auth_session.dart';
 import 'core/theme.dart';
 import 'widgets.dart';
 
@@ -32,7 +33,10 @@ class _CourierShellState extends State<CourierShell> {
         online: online,
         onOnlineChanged: (value) => setState(() => online = value),
       ),
-      const CourierProfile(),
+      CourierProfile(
+        online: online,
+        onOnlineChanged: (value) => setState(() => online = value),
+      ),
     ];
     return Scaffold(
       body: Column(
@@ -1745,72 +1749,277 @@ class _LedgerEntryCard extends StatelessWidget {
 }
 
 class CourierProfile extends StatelessWidget {
-  const CourierProfile({super.key});
+  const CourierProfile({
+    required this.online,
+    required this.onOnlineChanged,
+    super.key,
+  });
+  final bool online;
+  final ValueChanged<bool> onOnlineChanged;
+
+  void _showInfoDialog(BuildContext context, String title, String message) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer')),
+        ],
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text('Mon profil',
-                style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 18),
-            const Card(
+  Widget build(BuildContext context) => Column(
+    children: [
+      _HomeHeader(online: online, onToggle: () => onOnlineChanged(!online), title: 'Mon Profil'),
+      Expanded(
+        child: SafeArea(
+          top: false,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+            children: [
+              Center(
+                child: Column(
+                  children: [
+                    Stack(
+                      children: [
+                        Container(
+                          width: 112,
+                          height: 112,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: GabColors.primary,
+                            border: Border.all(color: Colors.white, width: 4),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'JM',
+                              style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 2,
+                          right: 2,
+                          child: Material(
+                            color: GabColors.primary,
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => _showInfoDialog(
+                                context,
+                                'Photo de profil',
+                                'Changement de photo indisponible en démonstration — sera activé une fois l’application connectée au stockage sécurisé de l’API.',
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Icon(Icons.photo_camera, color: Colors.white, size: 18),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Junior Moussavou',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text('+241 077 12 34 56', style: TextStyle(color: GabColors.muted)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+              _ProfileSection(
+                title: 'Sécurité & Compte',
+                rows: [
+                  _ProfileRow(
+                    icon: Icons.lock_outline,
+                    label: 'Changer mot de passe',
+                    onTap: () => Navigator.pushNamed(context, '/security'),
+                  ),
+                  _ProfileRow(
+                    icon: Icons.two_wheeler_outlined,
+                    label: 'Véhicule',
+                    subtitle: 'Moto · GA-204-LB',
+                    onTap: () => _showInfoDialog(
+                      context,
+                      'Véhicule',
+                      'Moto immatriculée GA-204-LB. La modification du véhicule affecté se '
+                          'fait auprès du Staff Gab’Pharma, pas directement dans l’application.',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _ProfileSection(
+                title: 'Opérations',
+                rows: [
+                  _ProfileRow(
+                    icon: Icons.map_outlined,
+                    label: 'Zones et disponibilité',
+                    onTap: () => Navigator.pushNamed(context, '/availability'),
+                  ),
+                  _ProfileRow(
+                    icon: Icons.badge_outlined,
+                    label: 'Documents',
+                    onTap: () => Navigator.pushNamed(context, '/documents'),
+                  ),
+                  _ProfileRow(
+                    icon: Icons.notifications_outlined,
+                    label: 'Notifications',
+                    onTap: () => Navigator.pushNamed(context, '/notifications'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _ProfileSection(
+                title: 'Informations',
+                rows: [
+                  _ProfileRow(
+                    icon: Icons.privacy_tip_outlined,
+                    label: 'Confidentialité',
+                    onTap: () => _showInfoDialog(
+                      context,
+                      'Confidentialité',
+                      'Gab’Pharma collecte uniquement les données nécessaires à la gestion de vos '
+                          'courses (position pendant une livraison active, historique, documents '
+                          'administratifs). Ces données sont traitées conformément aux lois de '
+                          'protection des données personnelles en vigueur au Gabon.',
+                    ),
+                  ),
+                  _ProfileRow(
+                    icon: Icons.support_agent,
+                    label: 'Support',
+                    onTap: () => Navigator.pushNamed(context, '/support'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    await AuthSession.instance.logout();
+                    if (!context.mounted) return;
+                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Déconnexion'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFDAD6),
+                    foregroundColor: const Color(0xFF93000A),
+                    elevation: 0,
+                    shape: const StadiumBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Version 1.0.4',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: GabColors.muted, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class _ProfileRow {
+  const _ProfileRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.subtitle,
+  });
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final VoidCallback onTap;
+}
+
+class _ProfileSection extends StatelessWidget {
+  const _ProfileSection({required this.title, required this.rows});
+  final String title;
+  final List<_ProfileRow> rows;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+    ),
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+          child: Text(
+            title.toUpperCase(),
+            style: const TextStyle(
+              color: GabColors.primary,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ),
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14),
+              child: Divider(height: 1, color: Color(0x33BEC9BD)),
+            ),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: rows[i].onTap,
               child: Padding(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 child: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: GabColors.primary,
-                      child: Text('JM', style: TextStyle(color: Colors.white)),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: const BoxDecoration(color: Color(0xFFDCECE3), shape: BoxShape.circle),
+                      child: Icon(rows[i].icon, color: GabColors.primary, size: 20),
                     ),
-                    SizedBox(width: 14),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Junior Moussavou',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
+                          Text(rows[i].label, style: const TextStyle(fontSize: 15)),
+                          if (rows[i].subtitle != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                rows[i].subtitle!,
+                                style: const TextStyle(color: GabColors.muted, fontSize: 12),
+                              ),
                             ),
-                          ),
-                          Text('Moto · GA-204-LB'),
                         ],
                       ),
                     ),
+                    const Icon(Icons.chevron_right, color: GabColors.outlineVariant),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            for (final item in const [
-              ('Zones et disponibilité', Icons.map_outlined, '/availability'),
-              ('Documents', Icons.badge_outlined, '/documents'),
-              ('Notifications', Icons.notifications_outlined, '/notifications'),
-              ('Support', Icons.support_agent, '/support'),
-              ('Profil et sécurité', Icons.security_outlined, '/security'),
-            ])
-              Card(
-                child: ListTile(
-                  onTap: () => Navigator.pushNamed(context, item.$3),
-                  leading: Icon(item.$2),
-                  title: Text(item.$1),
-                  trailing: const Icon(Icons.chevron_right),
-                ),
-              ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/login',
-                (route) => false,
-              ),
-              icon: const Icon(Icons.logout),
-              label: const Text('Se déconnecter'),
-            ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ],
+    ),
+  );
 }

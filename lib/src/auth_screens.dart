@@ -4,6 +4,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'core/api_client.dart';
+import 'core/auth_session.dart';
 import 'core/theme.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -49,13 +51,17 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     if (!mounted) return;
-    setState(() => _status = 'Chargement des missions...');
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+    setState(() => _status = 'Vérification de la session...');
+    final restored = await AuthSession.instance.restoreSession();
     if (!mounted) return;
 
-    setState(() => _status = 'Authentification...');
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    if (!mounted) return;
+    if (restored) {
+      setState(() => _status = 'Session retrouvée...');
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/home');
+      return;
+    }
 
     Navigator.pushReplacementNamed(context, '/login');
   }
@@ -248,14 +254,15 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _matriculeController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
   bool obscure = true;
   bool _submitting = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
-    _matriculeController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -281,11 +288,33 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     if (_submitting) return;
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _submitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    if (!mounted) return;
-    setState(() => _submitting = false);
-    Navigator.pushNamed(context, '/verify');
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
+    try {
+      final challenge = await AuthSession.instance.login(
+        identifier: _identifierController.text.trim(),
+        password: _passwordController.text,
+      );
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      Navigator.pushNamed(
+        context,
+        '/verify',
+        arguments: {
+          'challengeId': challenge.id,
+          'method': challenge.method,
+          'canResend': challenge.canResend,
+        },
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _errorMessage = error.message;
+      });
+    }
   }
 
   @override
@@ -334,15 +363,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 24),
                         TextFormField(
-                          controller: _matriculeController,
+                          controller: _identifierController,
                           decoration: const InputDecoration(
-                            labelText: 'Matricule',
-                            hintText: 'Ex: GP-2024-88',
+                            labelText: 'Identifiant',
+                            hintText: 'E-mail, téléphone ou nom d’utilisateur',
                             prefixIcon: Icon(Icons.badge_outlined),
                           ),
                           validator: (value) =>
                               (value == null || value.trim().isEmpty)
-                              ? 'Matricule requis'
+                              ? 'Identifiant requis'
                               : null,
                         ),
                         const SizedBox(height: 16),
@@ -377,6 +406,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: const Text('Mot de passe oublié ?'),
                           ),
                         ),
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            _errorMessage!,
+                            style: const TextStyle(color: GabColors.danger),
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         FilledButton(
                           onPressed: _submitting ? null : _submit,
@@ -470,15 +506,19 @@ class VerifyScreen extends StatefulWidget {
 
 class _VerifyScreenState extends State<VerifyScreen>
     with SingleTickerProviderStateMixin {
-  static const _validCode = '123456';
-
   String _code = '';
   bool _showError = false;
+  String? _errorMessage;
   bool _verifying = false;
   bool _success = false;
   int _timeLeft = 59;
   Timer? _timer;
   late final AnimationController _shakeController;
+
+  late String _challengeId;
+  late String _method;
+  bool _canResend = true;
+  bool _argsLoaded = false;
 
   @override
   void initState() {
@@ -487,6 +527,17 @@ class _VerifyScreenState extends State<VerifyScreen>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_argsLoaded) return;
+    _argsLoaded = true;
+    final args = ModalRoute.of(context)?.settings.arguments as Map?;
+    _challengeId = args?['challengeId'] as String? ?? '';
+    _method = args?['method'] as String? ?? 'email';
+    _canResend = args?['canResend'] as bool? ?? true;
     _startCountdown();
   }
 
@@ -525,9 +576,16 @@ class _VerifyScreenState extends State<VerifyScreen>
 
   Future<void> _verify() async {
     if (_code.length != 6 || _verifying || _success) return;
-    if (_code == _validCode) {
-      setState(() => _verifying = true);
-      await Future<void>.delayed(const Duration(milliseconds: 900));
+    setState(() {
+      _verifying = true;
+      _showError = false;
+    });
+    try {
+      await AuthSession.instance.verifyTwoFactor(
+        challengeId: _challengeId,
+        method: _method,
+        code: _code,
+      );
       if (!mounted) return;
       setState(() {
         _verifying = false;
@@ -536,19 +594,36 @@ class _VerifyScreenState extends State<VerifyScreen>
       await Future<void>.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
-    } else {
-      setState(() => _showError = true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _verifying = false;
+        _showError = true;
+        _errorMessage = error.message;
+        _code = '';
+      });
       unawaited(_shakeController.forward(from: 0));
     }
   }
 
-  void _resend() {
-    if (_timeLeft > 0) return;
+  Future<void> _resend() async {
+    if (_timeLeft > 0 || !_canResend) return;
     setState(() {
       _code = '';
       _showError = false;
     });
-    _startCountdown();
+    try {
+      final challenge = await AuthSession.instance.resendCode(_challengeId);
+      if (!mounted) return;
+      setState(() => _challengeId = challenge.id);
+      _startCountdown();
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _showError = true;
+        _errorMessage = error.message;
+      });
+    }
   }
 
   @override
@@ -604,10 +679,12 @@ class _VerifyScreenState extends State<VerifyScreen>
                       ),
                     ),
                     const SizedBox(height: 10),
-                    const Text(
-                      'Entrez le code à 6 chiffres envoyé par SMS au +241 07 7x xx xx',
+                    Text(
+                      _method == 'totp'
+                          ? "Entrez le code à 6 chiffres de votre application d'authentification"
+                          : 'Entrez le code à 6 chiffres envoyé par e-mail',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: GabColors.muted),
+                      style: const TextStyle(color: GabColors.muted),
                     ),
                     const SizedBox(height: 28),
                     AnimatedBuilder(
@@ -654,30 +731,34 @@ class _VerifyScreenState extends State<VerifyScreen>
                     ),
                     if (_showError) ...[
                       const SizedBox(height: 14),
-                      const Row(
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.report, size: 18, color: GabColors.danger),
-                          SizedBox(width: 4),
-                          Text(
-                            'Code incorrect',
-                            style: TextStyle(
-                              color: GabColors.danger,
-                              fontWeight: FontWeight.w700,
+                          const Icon(Icons.report, size: 18, color: GabColors.danger),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              _errorMessage ?? 'Code incorrect',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: GabColors.danger,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ],
                     const SizedBox(height: 18),
-                    TextButton(
-                      onPressed: _timeLeft == 0 ? _resend : null,
-                      child: Text(
-                        _timeLeft > 0
-                            ? 'Renvoyer le code  0:${_timeLeft.toString().padLeft(2, '0')}'
-                            : 'Renvoyer le code',
+                    if (_canResend)
+                      TextButton(
+                        onPressed: _timeLeft == 0 ? _resend : null,
+                        child: Text(
+                          _timeLeft > 0
+                              ? 'Renvoyer le code  0:${_timeLeft.toString().padLeft(2, '0')}'
+                              : 'Renvoyer le code',
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -814,8 +895,6 @@ class PasswordResetScreen extends StatefulWidget {
 }
 
 class _PasswordResetScreenState extends State<PasswordResetScreen> {
-  static const _validCode = '123456';
-
   int _step = 1;
   final _identifierFormKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
@@ -828,6 +907,11 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
   final _confirmPasswordController = TextEditingController();
   String? _otpError;
   String? _passwordError;
+  String? _challengeId;
+  String? _resetToken;
+  bool _submittingIdentifier = false;
+  bool _verifyingOtp = false;
+  bool _resettingPassword = false;
 
   @override
   void dispose() {
@@ -843,35 +927,79 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
     super.dispose();
   }
 
-  void _submitIdentifier() {
+  Future<void> _submitIdentifier() async {
+    if (_submittingIdentifier) return;
     if (!_identifierFormKey.currentState!.validate()) return;
-    setState(() => _step = 2);
-  }
-
-  void _verifyOtp() {
-    final code = _otpControllers.map((c) => c.text).join();
-    if (code == _validCode) {
+    setState(() => _submittingIdentifier = true);
+    try {
+      final challenge = await AuthSession.instance.requestPasswordReset(
+        _identifierController.text.trim(),
+      );
+      if (!mounted) return;
       setState(() {
-        _otpError = null;
-        _step = 3;
+        _submittingIdentifier = false;
+        _challengeId = challenge.id;
+        _step = 2;
       });
-    } else {
-      setState(() => _otpError = 'Code incorrect.');
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _submittingIdentifier = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
     }
   }
 
-  void _resendOtp() {
+  Future<void> _verifyOtp() async {
+    if (_verifyingOtp) return;
+    final code = _otpControllers.map((c) => c.text).join();
+    if (code.length != 6) {
+      setState(() => _otpError = 'Entrez les 6 chiffres du code.');
+      return;
+    }
+    setState(() {
+      _verifyingOtp = true;
+      _otpError = null;
+    });
+    try {
+      final resetToken = await AuthSession.instance.verifyPasswordReset(
+        challengeId: _challengeId!,
+        code: code,
+      );
+      if (!mounted) return;
+      setState(() {
+        _verifyingOtp = false;
+        _resetToken = resetToken;
+        _step = 3;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _verifyingOtp = false;
+        _otpError = error.message;
+      });
+    }
+  }
+
+  Future<void> _resendOtp() async {
     for (final controller in _otpControllers) {
       controller.clear();
     }
     _otpFocusNodes.first.requestFocus();
     setState(() => _otpError = null);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Nouveau code envoyé (démonstration : 123456).')),
-    );
+    try {
+      final challenge = await AuthSession.instance.resendCode(_challengeId!);
+      if (!mounted) return;
+      setState(() => _challengeId = challenge.id);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Nouveau code envoyé.')));
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 
-  void _resetPassword() {
+  Future<void> _resetPassword() async {
+    if (_resettingPassword) return;
     final password = _newPasswordController.text;
     final confirm = _confirmPasswordController.text;
     final hasDigit = RegExp(r'\d').hasMatch(password);
@@ -887,9 +1015,27 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
       return;
     }
     setState(() {
+      _resettingPassword = true;
       _passwordError = null;
-      _step = 4;
     });
+    try {
+      await AuthSession.instance.confirmPasswordReset(
+        resetToken: _resetToken!,
+        newPassword1: password,
+        newPassword2: confirm,
+      );
+      if (!mounted) return;
+      setState(() {
+        _resettingPassword = false;
+        _step = 4;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _resettingPassword = false;
+        _passwordError = error.message;
+      });
+    }
   }
 
   Widget _stepCard({required IconData icon, required List<Widget> children}) =>
@@ -1013,8 +1159,8 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                     child: TextFormField(
                       controller: _identifierController,
                       decoration: const InputDecoration(
-                        labelText: 'Matricule ou Email',
-                        hintText: 'Ex: livreur_241 / agent@gabpharma.com',
+                        labelText: 'Identifiant',
+                        hintText: 'E-mail, téléphone ou nom d’utilisateur',
                       ),
                       validator: (value) =>
                           (value == null || value.trim().isEmpty)
@@ -1025,8 +1171,14 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                 ],
               ),
               FilledButton(
-                onPressed: _submitIdentifier,
-                child: const Text('Continuer'),
+                onPressed: _submittingIdentifier ? null : _submitIdentifier,
+                child: _submittingIdentifier
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                      )
+                    : const Text('Continuer'),
               ),
             ] else if (_step == 2) ...[
               _stepCard(
@@ -1035,7 +1187,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                   const Text('Code de vérification envoyé !'),
                   const SizedBox(height: 4),
                   const Text(
-                    'Veuillez saisir le code à 6 chiffres reçu par SMS ou Email.',
+                    'Veuillez saisir le code à 6 chiffres reçu par e-mail.',
                     style: TextStyle(color: GabColors.muted),
                   ),
                   const SizedBox(height: 20),
@@ -1083,8 +1235,14 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                 ],
               ),
               FilledButton(
-                onPressed: _verifyOtp,
-                child: const Text('Vérifier'),
+                onPressed: _verifyingOtp ? null : _verifyOtp,
+                child: _verifyingOtp
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                      )
+                    : const Text('Vérifier'),
               ),
             ] else if (_step == 3) ...[
               _stepCard(
@@ -1143,8 +1301,14 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                 ],
               ),
               FilledButton(
-                onPressed: _resetPassword,
-                child: const Text('Réinitialiser'),
+                onPressed: _resettingPassword ? null : _resetPassword,
+                child: _resettingPassword
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                      )
+                    : const Text('Réinitialiser'),
               ),
             ] else ...[
               const SizedBox(height: 24),

@@ -2701,6 +2701,1215 @@ class _AdviceCard extends StatelessWidget {
   );
 }
 
+class _NotifEntry {
+  const _NotifEntry({
+    required this.title,
+    required this.body,
+    required this.time,
+    required this.icon,
+    required this.iconColor,
+    required this.iconBg,
+    this.detailRoute,
+    this.initiallyRead = false,
+  });
+  final String title;
+  final String body;
+  final String time;
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBg;
+  final String? detailRoute;
+  final bool initiallyRead;
+}
+
+class NotificationsScreen extends StatefulWidget {
+  const NotificationsScreen({super.key});
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  static const _today = <_NotifEntry>[
+    _NotifEntry(
+      title: 'Nouvelle course disponible',
+      body:
+          'Une commande de 1 500 FCFA est disponible à la Pharmacie de '
+          "l'Étoile vers Akanda - Angondjé.",
+      time: 'Il y a 5 min',
+      icon: Icons.delivery_dining,
+      iconColor: GabColors.primary,
+      iconBg: GabColors.primary,
+      detailRoute: '/available-detail',
+    ),
+    _NotifEntry(
+      title: 'Affectation confirmée',
+      body:
+          'La course GP-9830 a été officiellement assignée à votre profil. '
+          'Préparez-vous au départ.',
+      time: 'Il y a 45 min',
+      icon: Icons.task_alt,
+      iconColor: GabColors.routeBlue,
+      iconBg: GabColors.routeBlue,
+    ),
+  ];
+
+  static const _yesterday = <_NotifEntry>[
+    _NotifEntry(
+      title: 'Document validé',
+      body: 'Votre CNI/Passeport a été vérifié et validé par le Staff Gab’Pharma.',
+      time: 'Hier, 14:20',
+      icon: Icons.description_outlined,
+      iconColor: GabColors.muted,
+      iconBg: GabColors.muted,
+      initiallyRead: true,
+    ),
+    _NotifEntry(
+      title: 'Versement reçu',
+      body:
+          'Un paiement Airtel Money de 2 200 FCFA a été confirmé pour la '
+          'course GP-9744.',
+      time: 'Hier, 09:15',
+      icon: Icons.payments_outlined,
+      iconColor: GabColors.secondary,
+      iconBg: GabColors.secondary,
+      initiallyRead: true,
+    ),
+  ];
+
+  late final Set<int> _read = {
+    for (var i = 0; i < _today.length; i++)
+      if (_today[i].initiallyRead) i,
+    for (var i = 0; i < _yesterday.length; i++)
+      if (_yesterday[i].initiallyRead) _today.length + i,
+  };
+
+  void _markRead(int index) {
+    if (_read.contains(index)) return;
+    setState(() => _read.add(index));
+  }
+
+  void _markAllRead() {
+    setState(() => _read.addAll(List.generate(_today.length + _yesterday.length, (i) => i)));
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: GabColors.background,
+    appBar: AppBar(
+      backgroundColor: GabColors.background,
+      elevation: 0,
+      title: const Row(
+        children: [
+          Icon(Icons.notifications_outlined, color: GabColors.primary, size: 26),
+          SizedBox(width: 10),
+          Text(
+            'Notifications',
+            style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800, fontSize: 18),
+          ),
+        ],
+      ),
+      titleSpacing: 0,
+      actions: [
+        TextButton.icon(
+          onPressed: _markAllRead,
+          icon: const Icon(Icons.done_all, size: 18, color: GabColors.primary),
+          label: const Text('TOUT LIRE'),
+          style: TextButton.styleFrom(foregroundColor: GabColors.primary),
+        ),
+        const SizedBox(width: 8),
+      ],
+    ),
+    body: SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          _sectionLabel("AUJOURD'HUI"),
+          const SizedBox(height: 12),
+          for (var i = 0; i < _today.length; i++) ...[
+            _NotificationCard(
+              entry: _today[i],
+              read: _read.contains(i),
+              onTap: () => _markRead(i),
+              onDetail: _today[i].detailRoute == null
+                  ? null
+                  : () {
+                      _markRead(i);
+                      Navigator.pushNamed(context, _today[i].detailRoute!);
+                    },
+            ),
+            const SizedBox(height: 12),
+          ],
+          const SizedBox(height: 16),
+          _sectionLabel('HIER'),
+          const SizedBox(height: 12),
+          for (var i = 0; i < _yesterday.length; i++) ...[
+            _NotificationCard(
+              entry: _yesterday[i],
+              read: _read.contains(_today.length + i),
+              onTap: () => _markRead(_today.length + i),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    ),
+  );
+
+  Widget _sectionLabel(String text) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1,
+        color: GabColors.muted,
+      ),
+    ),
+  );
+}
+
+class _NotificationCard extends StatelessWidget {
+  const _NotificationCard({
+    required this.entry,
+    required this.read,
+    required this.onTap,
+    this.onDetail,
+  });
+  final _NotifEntry entry;
+  final bool read;
+  final VoidCallback onTap;
+  final VoidCallback? onDetail;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: read ? const Color(0xFFE2F1E9) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: read
+              ? null
+              : Border(left: BorderSide(color: entry.iconColor, width: 4)),
+          boxShadow: read
+              ? null
+              : [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: entry.iconBg.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(entry.icon, color: entry.iconColor),
+                ),
+                if (!read)
+                  Positioned(
+                    top: -1,
+                    right: -1,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: GabColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          entry.title,
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        entry.time,
+                        style: const TextStyle(color: GabColors.muted, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    entry.body,
+                    style: const TextStyle(color: GabColors.muted, fontSize: 13, height: 1.35),
+                  ),
+                  if (onDetail != null) ...[
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: onDetail,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Voir les détails',
+                            style: TextStyle(
+                              color: entry.iconColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Icon(Icons.chevron_right, size: 16, color: entry.iconColor),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+enum _TicketStatus { enCours, retard, termine }
+
+class _Ticket {
+  _Ticket({
+    required this.id,
+    required this.title,
+    required this.status,
+    required this.time,
+  });
+  final String id;
+  final String title;
+  _TicketStatus status;
+  String time;
+}
+
+class _SupportCategory {
+  const _SupportCategory(this.label, this.icon);
+  final String label;
+  final IconData icon;
+}
+
+class SupportScreen extends StatefulWidget {
+  const SupportScreen({super.key});
+  @override
+  State<SupportScreen> createState() => _SupportScreenState();
+}
+
+class _SupportScreenState extends State<SupportScreen> {
+  static const _categories = [
+    _SupportCategory('Livraison', Icons.delivery_dining),
+    _SupportCategory('Compte', Icons.account_circle_outlined),
+    _SupportCategory('Paiement', Icons.payments_outlined),
+  ];
+
+  final _tickets = <_Ticket>[
+    _Ticket(id: '#GP-84291', title: 'Problème de validation client', status: _TicketStatus.enCours, time: 'Il y a 15 min'),
+    _Ticket(id: '#GP-84110', title: 'Retard sur la zone Akanda', status: _TicketStatus.retard, time: 'Hier, 18:30'),
+    _Ticket(id: '#GP-83902', title: 'Erreur de paiement commission', status: _TicketStatus.enCours, time: '2 oct. 2023'),
+    _Ticket(id: '#GP-83100', title: 'Mise à jour RIB refusée', status: _TicketStatus.termine, time: 'Résolu le 28 sept.'),
+  ];
+
+  final _searchController = TextEditingController();
+  String _query = '';
+  int _nextTicketNumber = 84350;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<_Ticket> get _filtered {
+    if (_query.trim().isEmpty) return _tickets;
+    final q = _query.toLowerCase();
+    return _tickets.where((t) => t.title.toLowerCase().contains(q) || t.id.toLowerCase().contains(q)).toList();
+  }
+
+  void _openTicket(_Ticket ticket) {
+    Navigator.pushNamed(
+      context,
+      '/support-thread',
+      arguments: {
+        'id': ticket.id,
+        'subject': ticket.title,
+        'status': ticket.status == _TicketStatus.retard ? 'Retard' : 'En cours',
+      },
+    );
+  }
+
+  Future<void> _createTicket([String? presetCategory]) async {
+    final descriptionController = TextEditingController();
+    var category = presetCategory ?? _categories.first.label;
+    final submitted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(sheetContext).viewInsets.bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Nouveau ticket', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                children: [
+                  for (final c in _categories)
+                    ChoiceChip(
+                      label: Text(c.label),
+                      selected: category == c.label,
+                      onSelected: (_) => setSheetState(() => category = c.label),
+                      selectedColor: GabColors.primary.withValues(alpha: 0.15),
+                      labelStyle: TextStyle(
+                        color: category == c.label ? GabColors.primary : GabColors.muted,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: descriptionController,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  hintText: 'Décrivez votre problème...',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(sheetContext, true),
+                  child: const Text('Envoyer'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (submitted != true || !mounted) return;
+    setState(() {
+      _tickets.insert(
+        0,
+        _Ticket(
+          id: '#GP-$_nextTicketNumber',
+          title: 'Ticket $category — nouvelle demande',
+          status: _TicketStatus.enCours,
+          time: 'À l’instant',
+        ),
+      );
+      _nextTicketNumber++;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Ticket envoyé. Un agent du support va vous répondre.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activeCount = _tickets.where((t) => t.status != _TicketStatus.termine).length;
+    return Scaffold(
+      backgroundColor: GabColors.background,
+      appBar: AppBar(
+        backgroundColor: GabColors.background,
+        elevation: 0,
+        title: const Row(
+          children: [
+            Icon(Icons.support_agent, color: GabColors.primary, size: 26),
+            SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                "Support Gab'Pharma",
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800, fontSize: 17),
+              ),
+            ),
+          ],
+        ),
+        titleSpacing: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFA8F4B9),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.circle, size: 8, color: GabColors.primary),
+                  SizedBox(width: 6),
+                  Text('EN LIGNE', style: TextStyle(color: Color(0xFF287243), fontWeight: FontWeight.w800, fontSize: 11)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _createTicket(),
+        backgroundColor: GabColors.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_comment_outlined),
+        label: const Text('Créer un ticket'),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            const Text('Nouvelle demande', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                for (final c in _categories) ...[
+                  Expanded(
+                    child: _CategoryButton(category: c, onTap: () => _createTicket(c.label)),
+                  ),
+                  if (c != _categories.last) const SizedBox(width: 12),
+                ],
+              ],
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDCECE3),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (v) => setState(() => _query = v),
+                decoration: const InputDecoration(
+                  filled: false,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  isDense: true,
+                  hintText: 'Rechercher un ticket...',
+                  prefixIcon: Icon(Icons.search, color: GabColors.muted),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Mes tickets ouverts', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: GabColors.primary, borderRadius: BorderRadius.circular(999)),
+                  child: Text(
+                    '$activeCount Actifs',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (_filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: Text(
+                    'Aucun ticket ne correspond à « $_query ».',
+                    style: const TextStyle(color: GabColors.muted),
+                  ),
+                ),
+              )
+            else
+              for (final ticket in _filtered) ...[
+                _TicketCard(ticket: ticket, onTap: ticket.status == _TicketStatus.termine ? null : () => _openTicket(ticket)),
+                const SizedBox(height: 14),
+              ],
+            const SizedBox(height: 64),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryButton extends StatelessWidget {
+  const _CategoryButton({required this.category, required this.onTap});
+  final _SupportCategory category;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFFE2F1E9),
+    borderRadius: BorderRadius.circular(16),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(color: Color(0xFFA8F4B9), shape: BoxShape.circle),
+              child: Icon(category.icon, color: const Color(0xFF287243)),
+            ),
+            const SizedBox(height: 8),
+            Text(category.label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _TicketCard extends StatelessWidget {
+  const _TicketCard({required this.ticket, required this.onTap});
+  final _Ticket ticket;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolved = ticket.status == _TicketStatus.termine;
+    final (borderColor, badgeBg, badgeFg, label) = switch (ticket.status) {
+      _TicketStatus.enCours => (GabColors.primary, GabColors.routeBlue.withValues(alpha: 0.12), GabColors.routeBlue, 'En cours'),
+      _TicketStatus.retard => (GabColors.warning, GabColors.warning.withValues(alpha: 0.15), GabColors.warning, 'Retard'),
+      _TicketStatus.termine => (GabColors.outlineVariant, GabColors.primary.withValues(alpha: 0.12), GabColors.primary, 'Terminé'),
+    };
+
+    return Material(
+      color: resolved ? const Color(0xFFCEDED5).withValues(alpha: 0.4) : Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: resolved
+                ? Border.all(color: GabColors.outlineVariant)
+                : Border(left: BorderSide(color: borderColor, width: 4)),
+          ),
+          child: Opacity(
+            opacity: resolved ? 0.7 : 1,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(ticket.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                          const SizedBox(height: 2),
+                          Text('ID: ${ticket.id}', style: const TextStyle(color: GabColors.muted, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(10)),
+                      child: Text(label, style: TextStyle(color: badgeFg, fontWeight: FontWeight.w700, fontSize: 12)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(resolved ? Icons.check_circle_outline : Icons.schedule, size: 16, color: GabColors.muted),
+                        const SizedBox(width: 6),
+                        Text(ticket.time, style: const TextStyle(color: GabColors.muted, fontSize: 12)),
+                      ],
+                    ),
+                    if (!resolved) const Icon(Icons.chevron_right, color: GabColors.primary),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatMessage {
+  _ChatMessage({
+    required this.fromStaff,
+    required this.time,
+    this.text,
+    this.attachmentLabel,
+    this.read = true,
+  });
+  final bool fromStaff;
+  final String time;
+  final String? text;
+  final String? attachmentLabel;
+  final bool read;
+}
+
+class SupportThreadScreen extends StatefulWidget {
+  const SupportThreadScreen({
+    this.ticketId = '#GP-1024',
+    this.ticketSubject = 'Problème paiement',
+    this.statusLabel = 'En cours',
+    super.key,
+  });
+  final String ticketId;
+  final String ticketSubject;
+  final String statusLabel;
+
+  @override
+  State<SupportThreadScreen> createState() => _SupportThreadScreenState();
+}
+
+class _SupportThreadScreenState extends State<SupportThreadScreen> {
+  late final _messages = <_ChatMessage>[
+    _ChatMessage(
+      fromStaff: true,
+      time: '09:42',
+      text:
+          "Bonjour, je suis Sarah du support technique. J'ai bien reçu votre "
+          'signalement « ${widget.ticketSubject} » (Ticket ${widget.ticketId}). '
+          'Pouvez-vous me donner un peu plus de détails ?',
+    ),
+    _ChatMessage(
+      fromStaff: false,
+      time: '09:45',
+      text:
+          'Bonjour Sarah. Le problème est survenu ce matin pendant ma tournée '
+          "à Libreville. Je vous envoie une capture d'écran pour référence.",
+    ),
+    _ChatMessage(
+      fromStaff: true,
+      time: '09:48',
+      text:
+          'Merci, je vérifie cela dans notre système. Une capture au moment du '
+          'problème nous aiderait à accélérer la résolution.',
+    ),
+    _ChatMessage(
+      fromStaff: false,
+      time: '09:50',
+      attachmentLabel: 'Capture_${widget.ticketId.replaceAll('#', '')}.jpg',
+    ),
+  ];
+
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  final _scrollController = ScrollController();
+  bool _composing = false;
+  bool _sentNotice = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _jumpToEnd() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+  }
+
+  void _scrollToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _jumpToEnd());
+    // Keyboard show/hide animations resize the viewport after this frame,
+    // so correct the offset again once those settle.
+    Future.delayed(const Duration(milliseconds: 320), () {
+      if (mounted) _jumpToEnd();
+    });
+  }
+
+  void _send([String? preset]) {
+    final text = (preset ?? _controller.text).trim();
+    if (text.isEmpty) return;
+    final now = TimeOfDay.now();
+    final time = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    setState(() {
+      _messages.add(_ChatMessage(fromStaff: false, time: time, text: text, read: false));
+      _controller.clear();
+      _composing = false;
+    });
+    _scrollToEnd();
+    if (!_sentNotice) {
+      _sentNotice = true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Message envoyé. Un agent vous répondra dès que possible.')),
+      );
+    }
+  }
+
+  void _attach() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pièce jointe'),
+        content: const Text(
+          'Envoi de fichiers indisponible en démonstration — sera activé une '
+          "fois l'application connectée au stockage sécurisé de l'API.",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer')),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = widget.statusLabel == 'Retard' ? GabColors.warning : GabColors.routeBlue;
+    return Scaffold(
+      backgroundColor: GabColors.background,
+      appBar: AppBar(
+        backgroundColor: GabColors.background,
+        elevation: 0,
+        titleSpacing: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Ticket ${widget.ticketId}',
+              style: const TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800, fontSize: 17),
+            ),
+            Text(widget.ticketSubject, style: const TextStyle(color: GabColors.muted, fontSize: 12)),
+          ],
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(color: const Color(0xFFA8F4B9), borderRadius: BorderRadius.circular(999)),
+              child: const Text('EN LIGNE', style: TextStyle(color: Color(0xFF287243), fontWeight: FontWeight.w800, fontSize: 11)),
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: statusColor.withValues(alpha: 0.08),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+                      const SizedBox(width: 8),
+                      Text('Statut : ${widget.statusLabel}', style: TextStyle(color: statusColor, fontWeight: FontWeight.w800, fontSize: 13)),
+                    ],
+                  ),
+                  const Text('Dernière activité : Il y a 2 min', style: TextStyle(color: GabColors.muted, fontSize: 11)),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                children: [
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(color: const Color(0xFFDCECE3), borderRadius: BorderRadius.circular(999)),
+                      child: const Text("Aujourd'hui", style: TextStyle(color: GabColors.muted, fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  for (final m in _messages) ...[
+                    _ChatBubble(message: m),
+                    const SizedBox(height: 16),
+                  ],
+                ],
+              ),
+            ),
+            if (_composing)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    _QuickReplyChip(label: "Merci pour l'aide", onTap: () => _controller.text = "Merci pour l'aide"),
+                    const SizedBox(width: 8),
+                    _QuickReplyChip(label: "C'est envoyé", onTap: () => _controller.text = "C'est envoyé"),
+                  ],
+                ),
+              ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      onPressed: _attach,
+                      icon: const Icon(Icons.attach_file, color: GabColors.primary),
+                    ),
+                    Expanded(
+                      child: Container(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(color: const Color(0xFFE2F1E9), borderRadius: BorderRadius.circular(24)),
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          minLines: 1,
+                          maxLines: 4,
+                          onChanged: (v) => setState(() => _composing = _focusNode.hasFocus),
+                          onTap: () => setState(() => _composing = true),
+                          decoration: const InputDecoration(
+                            filled: false,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 12),
+                            hintText: 'Écrivez votre message...',
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Material(
+                      color: GabColors.primary,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => _send(),
+                        child: const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Icon(Icons.send, color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickReplyChip extends StatelessWidget {
+  const _QuickReplyChip({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(999),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: GabColors.outlineVariant),
+        ),
+        child: Text(label, style: const TextStyle(color: GabColors.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+      ),
+    ),
+  );
+}
+
+class _ChatBubble extends StatelessWidget {
+  const _ChatBubble({required this.message});
+  final _ChatMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final staff = message.fromStaff;
+    return Align(
+      alignment: staff ? Alignment.centerLeft : Alignment.centerRight,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+        child: Column(
+          crossAxisAlignment: staff ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+          children: [
+            if (staff) ...[
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircleAvatar(
+                    radius: 14,
+                    backgroundColor: Color(0xFFA8F4B9),
+                    child: Icon(Icons.support_agent, size: 16, color: Color(0xFF287243)),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Support Gab’Pharma', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                ],
+              ),
+              const SizedBox(height: 6),
+            ],
+            if (message.attachmentLabel != null)
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: staff ? Colors.white : GabColors.primary,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(18),
+                    topRight: const Radius.circular(18),
+                    bottomLeft: Radius.circular(staff ? 4 : 18),
+                    bottomRight: Radius.circular(staff ? 18 : 4),
+                  ),
+                  border: staff ? Border.all(color: GabColors.outlineVariant) : null,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 180,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCECE3),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.image_outlined, color: GabColors.muted, size: 32),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(6, 8, 6, 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            message.attachmentLabel!,
+                            style: TextStyle(
+                              color: staff ? GabColors.ink : Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(
+                            message.read ? Icons.done_all : Icons.check,
+                            size: 14,
+                            color: staff ? GabColors.muted : Colors.white70,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: staff ? Colors.white : GabColors.primary,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(18),
+                    topRight: const Radius.circular(18),
+                    bottomLeft: Radius.circular(staff ? 4 : 18),
+                    bottomRight: Radius.circular(staff ? 18 : 4),
+                  ),
+                  border: staff ? Border.all(color: GabColors.outlineVariant) : null,
+                  boxShadow: staff
+                      ? null
+                      : [BoxShadow(color: GabColors.primary.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      message.text ?? '',
+                      style: TextStyle(color: staff ? GabColors.ink : Colors.white, height: 1.4, fontSize: 14),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          message.time,
+                          style: TextStyle(
+                            color: staff ? GabColors.muted : Colors.white.withValues(alpha: 0.8),
+                            fontSize: 10,
+                          ),
+                        ),
+                        if (!staff) ...[
+                          const SizedBox(width: 4),
+                          Icon(message.read ? Icons.done_all : Icons.check, size: 13, color: Colors.white.withValues(alpha: 0.9)),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ChangePasswordScreen extends StatefulWidget {
+  const ChangePasswordScreen({super.key});
+  @override
+  State<ChangePasswordScreen> createState() => _ChangePasswordScreenState();
+}
+
+class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _currentController = TextEditingController();
+  final _newController = TextEditingController();
+  final _confirmController = TextEditingController();
+  bool _obscureCurrent = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _currentController.dispose();
+    _newController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _submitting = true);
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Mot de passe mis à jour pour cette session de démonstration.')),
+    );
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: GabColors.background,
+    appBar: AppBar(
+      backgroundColor: GabColors.background,
+      elevation: 0,
+      title: const Text(
+        'Changer mot de passe',
+        style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800, fontSize: 17),
+      ),
+    ),
+    body: SafeArea(
+      child: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            TextFormField(
+              controller: _currentController,
+              obscureText: _obscureCurrent,
+              decoration: InputDecoration(
+                labelText: 'Mot de passe actuel',
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscureCurrent ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
+                ),
+              ),
+              validator: (v) => (v == null || v.isEmpty) ? 'Mot de passe actuel requis' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _newController,
+              obscureText: _obscureNew,
+              decoration: InputDecoration(
+                labelText: 'Nouveau mot de passe',
+                prefixIcon: const Icon(Icons.lock_reset_outlined),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscureNew ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                ),
+              ),
+              validator: (v) {
+                if (v == null || v.length < 8 || !RegExp(r'\d').hasMatch(v)) {
+                  return 'Au moins 8 caractères et 1 chiffre.';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _confirmController,
+              obscureText: _obscureConfirm,
+              decoration: InputDecoration(
+                labelText: 'Confirmer le nouveau mot de passe',
+                prefixIcon: const Icon(Icons.lock_reset_outlined),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                ),
+              ),
+              validator: (v) => v != _newController.text ? 'Les mots de passe ne correspondent pas.' : null,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Astuce : au moins 8 caractères et 1 chiffre, comme à la connexion.',
+              style: TextStyle(color: GabColors.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 28),
+            FilledButton(
+              onPressed: _submitting ? null : _submit,
+              child: _submitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Mettre à jour'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class SimpleFeatureScreen extends StatelessWidget {
   const SimpleFeatureScreen({
     required this.title,
