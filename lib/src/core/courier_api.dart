@@ -25,6 +25,81 @@ class Pharmacy {
   );
 }
 
+class DeliveryActions {
+  const DeliveryActions({
+    required this.canPickup,
+    required this.canStart,
+    required this.canResendProofCode,
+    required this.canComplete,
+    required this.canReportAbsence,
+    required this.canReportIncident,
+  });
+
+  final bool canPickup;
+  final bool canStart;
+  final bool canResendProofCode;
+  final bool canComplete;
+  final bool canReportAbsence;
+  final bool canReportIncident;
+
+  static const _none = DeliveryActions(
+    canPickup: false,
+    canStart: false,
+    canResendProofCode: false,
+    canComplete: false,
+    canReportAbsence: false,
+    canReportIncident: false,
+  );
+
+  factory DeliveryActions.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return _none;
+    return DeliveryActions(
+      canPickup: json['can_pickup'] as bool? ?? false,
+      canStart: json['can_start'] as bool? ?? false,
+      canResendProofCode: json['can_resend_proof_code'] as bool? ?? false,
+      canComplete: json['can_complete'] as bool? ?? false,
+      canReportAbsence: json['can_report_absence'] as bool? ?? false,
+      canReportIncident: json['can_report_incident'] as bool? ?? false,
+    );
+  }
+}
+
+/// Incident lie a une course (`DeliveryIncident` cote Django) : statut binaire
+/// ouvert/resolu, taxonomie de 7 types dont `patient_absent` qui n'est plus
+/// soumis depuis cet ecran (parcours dedie, voir [CourierApi.reportPatientAbsence]).
+class DeliveryIncident {
+  const DeliveryIncident({
+    required this.id,
+    required this.incidentType,
+    required this.incidentTypeLabel,
+    required this.severityLabel,
+    required this.status,
+    required this.statusLabel,
+    required this.description,
+    this.createdAt,
+  });
+
+  final int id;
+  final String incidentType;
+  final String incidentTypeLabel;
+  final String severityLabel;
+  final String status;
+  final String statusLabel;
+  final String description;
+  final DateTime? createdAt;
+
+  factory DeliveryIncident.fromJson(Map<String, dynamic> json) => DeliveryIncident(
+    id: json['id'] as int,
+    incidentType: json['incident_type'] as String? ?? '',
+    incidentTypeLabel: json['incident_type_label'] as String? ?? '',
+    severityLabel: json['severity_label'] as String? ?? '',
+    status: json['status'] as String? ?? '',
+    statusLabel: json['status_label'] as String? ?? '',
+    description: json['description'] as String? ?? '',
+    createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null,
+  );
+}
+
 class CourierDelivery {
   const CourierDelivery({
     required this.id,
@@ -35,7 +110,13 @@ class CourierDelivery {
     required this.courierShareFcfa,
     required this.platformShareFcfa,
     required this.pharmacy,
+    required this.actions,
+    required this.incidents,
     this.recipientName,
+    this.patientPhone,
+    this.deliveryAddress,
+    this.deliveryDeadline,
+    this.isLate = false,
   });
 
   final int id;
@@ -46,21 +127,44 @@ class CourierDelivery {
   final int courierShareFcfa;
   final int platformShareFcfa;
   final Pharmacy pharmacy;
+  final DeliveryActions actions;
+  final List<DeliveryIncident> incidents;
   final String? recipientName;
+  final String? patientPhone;
+  final String? deliveryAddress;
+  final DateTime? deliveryDeadline;
+  final bool isLate;
 
-  factory CourierDelivery.fromJson(Map<String, dynamic> json) => CourierDelivery(
-    id: json['id'] as int,
-    status: json['status'] as String? ?? '',
-    statusLabel: json['status_label'] as String? ?? '',
-    zoneLabel: json['zone_label'] as String? ?? '',
-    deliveryFeeFcfa: json['delivery_fee_fcfa'] as int? ?? 0,
-    courierShareFcfa: json['courier_share_fcfa'] as int? ?? 0,
-    platformShareFcfa: json['platform_share_fcfa'] as int? ?? 0,
-    pharmacy: Pharmacy.fromJson(json['pharmacy'] as Map<String, dynamic>),
-    recipientName: (json['order'] as Map<String, dynamic>?)?['patient'] != null
-        ? ((json['order'] as Map<String, dynamic>)['patient'] as Map<String, dynamic>)['name'] as String?
-        : null,
-  );
+  factory CourierDelivery.fromJson(Map<String, dynamic> json) {
+    final order = json['order'] as Map<String, dynamic>?;
+    final patient = order?['patient'] as Map<String, dynamic>?;
+    final deadline = json['delivery_deadline'] as String?;
+    return CourierDelivery(
+      id: json['id'] as int,
+      status: json['status'] as String? ?? '',
+      statusLabel: json['status_label'] as String? ?? '',
+      zoneLabel: json['zone_label'] as String? ?? '',
+      deliveryFeeFcfa: json['delivery_fee_fcfa'] as int? ?? 0,
+      courierShareFcfa: json['courier_share_fcfa'] as int? ?? 0,
+      platformShareFcfa: json['platform_share_fcfa'] as int? ?? 0,
+      pharmacy: Pharmacy.fromJson(json['pharmacy'] as Map<String, dynamic>),
+      actions: DeliveryActions.fromJson(json['actions'] as Map<String, dynamic>?),
+      incidents: ((json['incidents'] as List?) ?? [])
+          .map((e) => DeliveryIncident.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      recipientName: patient?['name'] as String?,
+      patientPhone: patient?['phone'] as String?,
+      deliveryAddress: order?['delivery_address'] as String?,
+      deliveryDeadline: deadline != null ? DateTime.tryParse(deadline) : null,
+      isLate: json['is_late'] as bool? ?? false,
+    );
+  }
+}
+
+class PatientAbsenceResult {
+  const PatientAbsenceResult({required this.delivery, required this.incident});
+  final CourierDelivery delivery;
+  final DeliveryIncident incident;
 }
 
 class CourierAvailability {
@@ -140,5 +244,67 @@ class CourierApi {
     return ((json['deliveries'] as List?) ?? [])
         .map((e) => CourierDelivery.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<CourierDelivery> pickupDelivery(int id) async {
+    final json = await _client.postJson('/mobile/courier/deliveries/$id/pickup/');
+    return CourierDelivery.fromJson(json);
+  }
+
+  Future<CourierDelivery> startDelivery(int id) async {
+    final json = await _client.postJson('/mobile/courier/deliveries/$id/start/');
+    return CourierDelivery.fromJson(json);
+  }
+
+  Future<CourierDelivery> resendProofCode(int id) async {
+    final json = await _client.postJson('/mobile/courier/deliveries/$id/resend-proof/');
+    return CourierDelivery.fromJson(json);
+  }
+
+  Future<CourierDelivery> completeDelivery(
+    int id, {
+    required String proofCode,
+    required String recipientName,
+  }) async {
+    final json = await _client.postJson('/mobile/courier/deliveries/$id/complete/', {
+      'proof_code': proofCode,
+      'recipient_name': recipientName,
+    });
+    return CourierDelivery.fromJson(json);
+  }
+
+  /// Parcours dedie "Client absent" (`.../patient-absence/`), distinct du
+  /// signalement d'incident generique : exige la double confirmation
+  /// (deux appels + dix minutes d'attente) et fait transiter la course vers
+  /// `returning` plutot que de simplement journaliser un incident.
+  Future<PatientAbsenceResult> reportPatientAbsence(
+    int id, {
+    required bool contactAttemptsConfirmed,
+    required bool waitConfirmed,
+    required String description,
+  }) async {
+    final json = await _client.postJson('/mobile/courier/deliveries/$id/patient-absence/', {
+      'contact_attempts_confirmed': contactAttemptsConfirmed,
+      'wait_confirmed': waitConfirmed,
+      'description': description,
+    });
+    return PatientAbsenceResult(
+      delivery: CourierDelivery.fromJson(json['delivery'] as Map<String, dynamic>),
+      incident: DeliveryIncident.fromJson(json['incident'] as Map<String, dynamic>),
+    );
+  }
+
+  Future<DeliveryIncident> reportIncident(
+    int id, {
+    required String incidentType,
+    required String severity,
+    required String description,
+  }) async {
+    final json = await _client.postJson('/mobile/courier/deliveries/$id/incidents/', {
+      'incident_type': incidentType,
+      'severity': severity,
+      'description': description,
+    });
+    return DeliveryIncident.fromJson(json);
   }
 }

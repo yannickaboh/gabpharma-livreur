@@ -445,15 +445,25 @@ class ActiveDeliveryScreen extends StatefulWidget {
 }
 
 class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
-  static const _validOtp = '654321';
+  final _api = CourierApi.fromSession();
+  CourierDelivery? _delivery;
+  bool _loading = true;
+  bool _actionLoading = false;
+  String? _error;
 
-  int step = 2;
   final List<TextEditingController> _otpControllers = List.generate(
     6,
     (_) => TextEditingController(),
   );
   final List<FocusNode> _otpFocusNodes = List.generate(6, (_) => FocusNode());
+  final _recipientNameController = TextEditingController();
   String? _otpError;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   @override
   void dispose() {
@@ -463,16 +473,47 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
     for (final node in _otpFocusNodes) {
       node.dispose();
     }
+    _recipientNameController.dispose();
     super.dispose();
   }
 
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final active = await _api.fetchActiveDeliveries();
+      if (!mounted) return;
+      setState(() {
+        _delivery = active.isEmpty ? null : active.first;
+        _error = active.isEmpty ? 'Aucune course active pour le moment.' : null;
+        _loading = false;
+        if (_delivery?.recipientName != null) {
+          _recipientNameController.text = _delivery!.recipientName!;
+        }
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
+
   void _callClient(BuildContext context) {
+    final delivery = _delivery!;
+    final name = delivery.recipientName ?? 'le patient';
+    final phone = delivery.patientPhone;
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Appeler la cliente'),
-        content: const Text(
-          'Appelez Mme. Obiang au +241 07 00 00 00 depuis votre téléphone.',
+        title: const Text('Appeler le patient'),
+        content: Text(
+          phone != null
+              ? 'Appelez $name au $phone depuis votre téléphone.'
+              : 'Aucun numéro de téléphone renseigné pour $name.',
         ),
         actions: [
           TextButton(
@@ -484,31 +525,479 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
     );
   }
 
-  void _resendOtp() {
-    for (final controller in _otpControllers) {
-      controller.clear();
+  Future<void> _pickup() async {
+    if (_actionLoading) return;
+    setState(() => _actionLoading = true);
+    try {
+      final delivery = await _api.pickupDelivery(_delivery!.id);
+      if (!mounted) return;
+      setState(() {
+        _delivery = delivery;
+        _actionLoading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _actionLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
     }
-    _otpFocusNodes.first.requestFocus();
-    setState(() => _otpError = null);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Nouveau code envoyé à la cliente (démonstration).')),
-    );
   }
 
-  void _confirmDelivery() {
-    final code = _otpControllers.map((c) => c.text).join();
-    if (code == _validOtp) {
+  Future<void> _start() async {
+    if (_actionLoading) return;
+    setState(() => _actionLoading = true);
+    try {
+      final delivery = await _api.startDelivery(_delivery!.id);
+      if (!mounted) return;
       setState(() {
-        _otpError = null;
-        step = 3;
+        _delivery = delivery;
+        _actionLoading = false;
       });
-    } else {
-      setState(() => _otpError = 'Code incorrect.');
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _actionLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  Future<void> _resendOtp() async {
+    if (_actionLoading) return;
+    setState(() => _actionLoading = true);
+    try {
+      final delivery = await _api.resendProofCode(_delivery!.id);
+      if (!mounted) return;
+      for (final controller in _otpControllers) {
+        controller.clear();
+      }
+      _otpFocusNodes.first.requestFocus();
+      setState(() {
+        _delivery = delivery;
+        _otpError = null;
+        _actionLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nouveau code envoyé au patient.')),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _actionLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  Future<void> _confirmDelivery() async {
+    if (_actionLoading) return;
+    final recipientName = _recipientNameController.text.trim();
+    if (recipientName.isEmpty) {
+      setState(() => _otpError = 'Le nom du destinataire est obligatoire.');
+      return;
+    }
+    final code = _otpControllers.map((c) => c.text).join();
+    if (code.length != 6) {
+      setState(() => _otpError = 'Saisissez les 6 chiffres du code.');
+      return;
+    }
+    setState(() {
+      _actionLoading = true;
+      _otpError = null;
+    });
+    try {
+      final delivery = await _api.completeDelivery(
+        _delivery!.id,
+        proofCode: code,
+        recipientName: recipientName,
+      );
+      if (!mounted) return;
+      setState(() {
+        _delivery = delivery;
+        _actionLoading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _actionLoading = false);
+      if (error.code == 'invalid_proof_code') {
+        setState(() => _otpError = error.message);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
+  Future<void> _reportPatientAbsence() async {
+    final descriptionController = TextEditingController();
+    bool contactAttemptsConfirmed = false;
+    bool waitConfirmed = false;
+    bool submitting = false;
+    String? sheetError;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Client absent',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Cette déclaration engage un retour obligatoire de la commande '
+                'à la pharmacie — confirmez les deux étapes ci-dessous avant de continuer.',
+                style: TextStyle(color: GabColors.muted),
+              ),
+              const SizedBox(height: 16),
+              CheckboxListTile(
+                value: contactAttemptsConfirmed,
+                onChanged: (value) =>
+                    setSheetState(() => contactAttemptsConfirmed = value ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                title: const Text("J'ai appelé le patient au moins deux fois"),
+              ),
+              CheckboxListTile(
+                value: waitConfirmed,
+                onChanged: (value) => setSheetState(() => waitConfirmed = value ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                title: const Text("J'ai attendu au moins dix minutes sur place"),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: descriptionController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: 'Décrivez les tentatives de contact effectuées...',
+                ),
+              ),
+              if (sheetError != null) ...[
+                const SizedBox(height: 8),
+                Text(sheetError!, style: const TextStyle(color: GabColors.danger)),
+              ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton(
+                  onPressed: submitting
+                      ? null
+                      : () async {
+                          if (!contactAttemptsConfirmed || !waitConfirmed) {
+                            setSheetState(
+                              () => sheetError = 'Confirmez les deux étapes ci-dessus.',
+                            );
+                            return;
+                          }
+                          final description = descriptionController.text.trim();
+                          if (description.isEmpty) {
+                            setSheetState(
+                              () => sheetError = 'La description est obligatoire.',
+                            );
+                            return;
+                          }
+                          setSheetState(() {
+                            submitting = true;
+                            sheetError = null;
+                          });
+                          try {
+                            final result = await _api.reportPatientAbsence(
+                              _delivery!.id,
+                              contactAttemptsConfirmed: contactAttemptsConfirmed,
+                              waitConfirmed: waitConfirmed,
+                              description: description,
+                            );
+                            if (!mounted) return;
+                            if (sheetContext.mounted) Navigator.pop(sheetContext);
+                            setState(() => _delivery = result.delivery);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Absence déclarée — retour à la pharmacie requis.',
+                                ),
+                              ),
+                            );
+                          } on ApiException catch (error) {
+                            setSheetState(() {
+                              submitting = false;
+                              sheetError = error.message;
+                            });
+                          }
+                        },
+                  child: submitting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text("Confirmer l'absence du patient"),
+                ),
+              ),
+            ],
+            ),
+          ),
+        ),
+      ),
+    );
+    descriptionController.dispose();
+  }
+
+  int _stepForStatus(String status) => switch (status) {
+    'assigned' => 0,
+    'picked_up' => 1,
+    'in_transit' => 2,
+    'returning' => 2,
+    _ => 3,
+  };
+
+  String? _deadlineLabel(CourierDelivery delivery) {
+    final deadline = delivery.deliveryDeadline;
+    if (deadline == null) return null;
+    final local = deadline.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return delivery.isLate ? 'En retard (limite $hh:$mm)' : 'Limite $hh:$mm';
+  }
+
+  Widget _statusPanel(CourierDelivery delivery) {
+    switch (delivery.status) {
+      case 'assigned':
+        return _StepPanel(
+          title: 'Course affectée',
+          body: 'Rendez-vous à la pharmacie pour récupérer la commande.',
+          buttonLabel: 'Confirmer la collecte',
+          loading: _actionLoading,
+          onPressed: _pickup,
+        );
+      case 'picked_up':
+        return _StepPanel(
+          title: 'Collecte effectuée',
+          body: 'Démarrez la livraison vers le patient.',
+          buttonLabel: 'Démarrer la livraison',
+          loading: _actionLoading,
+          onPressed: _start,
+        );
+      case 'in_transit':
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFDCECE3),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: GabColors.primary, width: 2),
+          ),
+          child: Column(
+            children: [
+              const Text(
+                'Confirmation de remise',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: GabColors.primary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Saisissez le code OTP reçu par le patient',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: GabColors.muted),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _recipientNameController,
+                decoration: const InputDecoration(labelText: 'Nom du destinataire'),
+                onChanged: (_) {
+                  if (_otpError != null) setState(() => _otpError = null);
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(6, (index) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: SizedBox(
+                      width: 38,
+                      height: 56,
+                      child: TextField(
+                        controller: _otpControllers[index],
+                        focusNode: _otpFocusNodes[index],
+                        maxLength: 1,
+                        textAlign: TextAlign.center,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        decoration: const InputDecoration(
+                          counterText: '',
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        onChanged: (value) {
+                          setState(() => _otpError = null);
+                          if (value.isNotEmpty && index < 5) {
+                            _otpFocusNodes[index + 1].requestFocus();
+                          } else if (value.isEmpty && index > 0) {
+                            _otpFocusNodes[index - 1].requestFocus();
+                          }
+                        },
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              if (_otpError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _otpError!,
+                  style: const TextStyle(color: GabColors.danger),
+                ),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: _actionLoading ? null : _confirmDelivery,
+                  icon: const Icon(Icons.task_alt),
+                  label: const Text('Valider la remise (OTP)'),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _actionLoading ? null : _resendOtp,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Renvoyer OTP'),
+              ),
+            ],
+          ),
+        );
+      case 'returning':
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: GabColors.warning.withValues(alpha: 0.5)),
+          ),
+          child: Column(
+            children: [
+              const Icon(Icons.assignment_return, color: GabColors.warning, size: 40),
+              const SizedBox(height: 10),
+              const Text(
+                'Retour à la pharmacie en cours',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Absence du patient confirmée. Ramenez la commande à '
+                '${delivery.pharmacy.name} — le retour sera validé par le Staff '
+                "Gab'Pharma.",
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: GabColors.muted),
+              ),
+            ],
+          ),
+        );
+      case 'delivered':
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+          ),
+          child: Column(
+            children: [
+              const Icon(Icons.check_circle, color: GabColors.primary, size: 48),
+              const SizedBox(height: 10),
+              const Text(
+                'Course livrée avec succès',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.popUntil(
+                    context,
+                    (route) => route.isFirst,
+                  ),
+                  child: const Text("Retour à l'accueil"),
+                ),
+              ),
+            ],
+          ),
+        );
+      default:
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+          ),
+          child: Text(
+            delivery.statusLabel,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        );
     }
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final delivery = _delivery;
+    if (_error != null || delivery == null) {
+      return Scaffold(
+        backgroundColor: GabColors.background,
+        appBar: AppBar(
+          backgroundColor: GabColors.background,
+          elevation: 0,
+          title: const Text(
+            'Course en cours',
+            style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.info_outline, size: 40, color: GabColors.muted),
+                const SizedBox(height: 12),
+                Text(
+                  _error ?? 'Course introuvable.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: GabColors.muted),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Réessayer'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    final deadlineLabel = _deadlineLabel(delivery);
+    return Scaffold(
     backgroundColor: GabColors.background,
     appBar: AppBar(
       backgroundColor: GabColors.background,
@@ -572,7 +1061,7 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
             ),
             child: Column(
               children: [
-                _DeliveryTimeline(step: step),
+                _DeliveryTimeline(step: _stepForStatus(delivery.status)),
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -600,29 +1089,30 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Mme. Obiang',
-                              style: TextStyle(
+                            Text(
+                              delivery.recipientName ?? 'Patient',
+                              style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.phone,
-                                  size: 14,
-                                  color: GabColors.muted,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '+241 07 00 00 00',
-                                  style: TextStyle(
-                                    color: GabColors.muted.withValues(alpha: 0.9),
+                            if (delivery.patientPhone != null)
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.phone,
+                                    size: 14,
+                                    color: GabColors.muted,
                                   ),
-                                ),
-                              ],
-                            ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    delivery.patientPhone!,
+                                    style: TextStyle(
+                                      color: GabColors.muted.withValues(alpha: 0.9),
+                                    ),
+                                  ),
+                                ],
+                              ),
                           ],
                         ),
                       ),
@@ -668,24 +1158,29 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
                         ),
                       ),
                     ),
-                    Positioned(
-                      left: 12,
-                      bottom: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Text(
-                          '12 min restantes',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                    if (deadlineLabel != null)
+                      Positioned(
+                        left: 12,
+                        bottom: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            deadlineLabel,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color: delivery.isLate ? GabColors.danger : GabColors.ink,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
                 Padding(
@@ -725,9 +1220,9 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
                                     color: GabColors.muted,
                                   ),
                                 ),
-                                const Text(
-                                  'Pharmacie du Bord de Mer',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                Text(
+                                  delivery.pharmacy.name,
+                                  style: const TextStyle(fontWeight: FontWeight.w700),
                                 ),
                                 const SizedBox(height: 14),
                                 const Text(
@@ -739,9 +1234,11 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
                                     color: GabColors.muted,
                                   ),
                                 ),
-                                const Text(
-                                  'Quartier Louis, Libreville',
-                                  style: TextStyle(
+                                Text(
+                                  delivery.deliveryAddress?.isNotEmpty == true
+                                      ? '${delivery.deliveryAddress}, ${delivery.zoneLabel}'
+                                      : delivery.zoneLabel,
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.w700,
                                     color: GabColors.primary,
                                   ),
@@ -781,172 +1278,86 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          if (step < 2)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+          _statusPanel(delivery),
+          if (delivery.actions.canReportAbsence) ...[
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _reportPatientAbsence,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: GabColors.warning,
+                side: BorderSide(color: GabColors.warning.withValues(alpha: 0.4)),
               ),
-              child: Column(
-                children: [
-                  Text(
-                    step == 0 ? 'Course affectée' : 'Collecte effectuée',
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: GabColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    step == 0
-                        ? 'Rendez-vous à la pharmacie pour récupérer la commande.'
-                        : 'Démarrez la livraison vers la cliente.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: GabColors.muted),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () => setState(() => step++),
-                      child: Text(
-                        step == 0 ? 'Confirmer la collecte' : 'Démarrer la livraison',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else if (step == 2)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFDCECE3),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: GabColors.primary, width: 2),
-              ),
-              child: Column(
-                children: [
-                  const Text(
-                    'Confirmation de remise',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: GabColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Saisissez le code OTP reçu par la cliente',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: GabColors.muted),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(6, (index) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: SizedBox(
-                          width: 38,
-                          height: 56,
-                          child: TextField(
-                            controller: _otpControllers[index],
-                            focusNode: _otpFocusNodes[index],
-                            maxLength: 1,
-                            textAlign: TextAlign.center,
-                            keyboardType: TextInputType.number,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            decoration: const InputDecoration(
-                              counterText: '',
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            onChanged: (value) {
-                              setState(() => _otpError = null);
-                              if (value.isNotEmpty && index < 5) {
-                                _otpFocusNodes[index + 1].requestFocus();
-                              } else if (value.isEmpty && index > 0) {
-                                _otpFocusNodes[index - 1].requestFocus();
-                              }
-                            },
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                  if (_otpError != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _otpError!,
-                      style: const TextStyle(color: GabColors.danger),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: FilledButton.icon(
-                      onPressed: _confirmDelivery,
-                      icon: const Icon(Icons.task_alt),
-                      label: const Text('Valider la remise (OTP)'),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _resendOtp,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Renvoyer OTP'),
-                  ),
-                ],
-              ),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
-              ),
-              child: Column(
-                children: [
-                  const Icon(Icons.check_circle, color: GabColors.primary, size: 48),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Course livrée avec succès',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () => Navigator.popUntil(
-                        context,
-                        (route) => route.isFirst,
-                      ),
-                      child: const Text("Retour à l'accueil"),
-                    ),
-                  ),
-                ],
-              ),
+              icon: const Icon(Icons.person_off_outlined),
+              label: const Text('Client absent'),
             ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.pushNamed(context, '/incident'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: GabColors.danger,
-              side: BorderSide(color: GabColors.danger.withValues(alpha: 0.3)),
+          ],
+          if (delivery.actions.canReportIncident) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, '/incident'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: GabColors.danger,
+                side: BorderSide(color: GabColors.danger.withValues(alpha: 0.3)),
+              ),
+              icon: const Icon(Icons.report_problem_outlined),
+              label: const Text('Signaler un problème'),
             ),
-            icon: const Icon(Icons.report_problem_outlined),
-            label: const Text('Signaler un problème'),
-          ),
+          ],
         ],
       ),
+    ),
+  );
+  }
+}
+
+class _StepPanel extends StatelessWidget {
+  const _StepPanel({
+    required this.title,
+    required this.body,
+    required this.buttonLabel,
+    required this.loading,
+    required this.onPressed,
+  });
+
+  final String title;
+  final String body;
+  final String buttonLabel;
+  final bool loading;
+  final Future<void> Function() onPressed;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+    ),
+    child: Column(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: GabColors.primary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          body,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: GabColors.muted),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: loading ? null : onPressed,
+            child: Text(buttonLabel),
+          ),
+        ),
+      ],
     ),
   );
 }
@@ -1027,23 +1438,37 @@ class IncidentScreen extends StatefulWidget {
 }
 
 class _IncidentScreenState extends State<IncidentScreen> {
+  final _api = CourierApi.fromSession();
+  CourierDelivery? _delivery;
+  bool _loading = true;
+  String? _error;
+
   static const _types = [
-    'Accident',
-    'Panne véhicule',
-    'Client absent',
-    'Problème pharmacie',
+    ('delay', 'Retard'),
+    ('recipient_unreachable', 'Destinataire injoignable'),
+    ('wrong_address', 'Adresse incorrecte'),
+    ('vehicle', 'Problème de véhicule'),
+    ('package', 'Colis endommagé ou incomplet'),
+    ('other', 'Autre'),
   ];
+  static const _severityCodes = ['low', 'medium', 'high'];
   static const _severityLabels = ['Faible', 'Moyenne', 'Critique'];
   static const _severityColors = [
     GabColors.primary,
-    Color(0xFFC16A00),
+    GabColors.warning,
     GabColors.danger,
   ];
 
-  String? _selectedType;
+  String? _selectedTypeCode;
   int _severity = 0;
   final _descriptionController = TextEditingController();
   _ReportState _reportState = _ReportState.idle;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   @override
   void dispose() {
@@ -1051,15 +1476,80 @@ class _IncidentScreenState extends State<IncidentScreen> {
     super.dispose();
   }
 
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final active = await _api.fetchActiveDeliveries();
+      if (!mounted) return;
+      setState(() {
+        _delivery = active.isEmpty ? null : active.first;
+        _error = active.isEmpty
+            ? "Aucune course active. Le signalement d'incident nécessite une course en cours."
+            : null;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
+
   Future<void> _submit() async {
     if (_reportState != _ReportState.idle) return;
+    final typeCode = _selectedTypeCode;
+    if (typeCode == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Sélectionnez un type d'incident.")));
+      return;
+    }
+    final description = _descriptionController.text.trim();
+    if (description.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Décrivez brièvement le problème.')));
+      return;
+    }
     setState(() => _reportState = _ReportState.sending);
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-    setState(() => _reportState = _ReportState.sent);
-    await Future<void>.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() => _reportState = _ReportState.idle);
+    try {
+      await _api.reportIncident(
+        _delivery!.id,
+        incidentType: typeCode,
+        severity: _severityCodes[_severity],
+        description: description,
+      );
+      if (!mounted) return;
+      _descriptionController.clear();
+      setState(() {
+        _reportState = _ReportState.sent;
+        _selectedTypeCode = null;
+        _severity = 0;
+      });
+      await _reloadDelivery();
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      setState(() => _reportState = _ReportState.idle);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _reportState = _ReportState.idle);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  Future<void> _reloadDelivery() async {
+    try {
+      final active = await _api.fetchActiveDeliveries();
+      if (!mounted) return;
+      setState(() => _delivery = active.isEmpty ? _delivery : active.first);
+    } on ApiException {
+      // Rafraîchissement best-effort : on garde l'état précédent si ça échoue.
+    }
   }
 
   void _showIncidentDetails(BuildContext context, String title, String description) {
@@ -1078,235 +1568,302 @@ class _IncidentScreenState extends State<IncidentScreen> {
     );
   }
 
+  static IconData _iconForType(String type) => switch (type) {
+    'delay' => Icons.schedule,
+    'recipient_unreachable' => Icons.phone_disabled,
+    'patient_absent' => Icons.person_off,
+    'wrong_address' => Icons.wrong_location,
+    'vehicle' => Icons.emergency,
+    'package' => Icons.inventory_2,
+    _ => Icons.report_problem,
+  };
+
+  static Color _colorForSeverityLabel(String severityLabel) => switch (severityLabel) {
+    'Faible' => GabColors.primary,
+    'Élevée' => GabColors.danger,
+    _ => GabColors.warning,
+  };
+
+  static String _timeAgo(DateTime? dt) {
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return "À l'instant";
+    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Il y a ${diff.inHours} h';
+    return 'Il y a ${diff.inDays} j';
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: GabColors.background,
-    appBar: AppBar(
-      backgroundColor: GabColors.background,
-      elevation: 0,
-      title: const Row(
-        children: [
-          Icon(Icons.report_problem, color: GabColors.primary, size: 26),
-          SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              'Signaler un incident',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: GabColors.primary,
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
-              ),
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final delivery = _delivery;
+    if (_error != null || delivery == null) {
+      return Scaffold(
+        backgroundColor: GabColors.background,
+        appBar: AppBar(
+          backgroundColor: GabColors.background,
+          elevation: 0,
+          title: const Text(
+            'Signaler un incident',
+            style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.info_outline, size: 40, color: GabColors.muted),
+                const SizedBox(height: 12),
+                Text(
+                  _error ?? 'Course introuvable.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: GabColors.muted),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Réessayer'),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
-      titleSpacing: 0,
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 16),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.circle, size: 8, color: GabColors.primary),
-              const SizedBox(width: 6),
-              Text(
-                'EN LIGNE',
+        ),
+      );
+    }
+    final openIncidents = delivery.incidents.where((i) => i.status == 'open').toList();
+    return Scaffold(
+      backgroundColor: GabColors.background,
+      appBar: AppBar(
+        backgroundColor: GabColors.background,
+        elevation: 0,
+        title: const Row(
+          children: [
+            Icon(Icons.report_problem, color: GabColors.primary, size: 26),
+            SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                'Signaler un incident',
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: GabColors.primary,
                   fontWeight: FontWeight.w800,
-                  fontSize: 11,
+                  fontSize: 17,
                 ),
               ),
-            ],
-          ),
-        ),
-      ],
-    ),
-    body: SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        ),
+        titleSpacing: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  "Détails de l'incident",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  "Type d'incident",
-                  style: TextStyle(color: GabColors.muted, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedType,
-                  hint: const Text('Sélectionner le type'),
-                  items: _types
-                      .map((type) => DropdownMenuItem(value: type, child: Text(type)))
-                      .toList(),
-                  onChanged: (value) => setState(() => _selectedType = value),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Sévérité',
-                  style: TextStyle(color: GabColors.muted, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: List.generate(3, (index) {
-                    final selected = _severity == index;
-                    final color = _severityColors[index];
-                    return Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(right: index < 2 ? 8 : 0),
-                        child: InkWell(
-                          onTap: () => setState(() => _severity = index),
-                          borderRadius: BorderRadius.circular(14),
-                          child: Container(
-                            height: 56,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: selected ? color : Colors.transparent,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: selected ? Colors.transparent : GabColors.outlineVariant,
-                                width: 2,
-                              ),
-                            ),
-                            child: Text(
-                              _severityLabels[index],
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: selected ? Colors.white : GabColors.muted,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Description',
-                  style: TextStyle(color: GabColors.muted, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _descriptionController,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: 'Veuillez décrire brièvement le problème...',
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: FilledButton.icon(
-                    onPressed: _reportState == _ReportState.idle ? _submit : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _reportState == _ReportState.sent
-                          ? GabColors.routeBlue
-                          : GabColors.primary,
-                      disabledBackgroundColor: _reportState == _ReportState.sent
-                          ? GabColors.routeBlue
-                          : GabColors.primary,
-                      disabledForegroundColor: Colors.white,
-                    ),
-                    icon: Icon(
-                      switch (_reportState) {
-                        _ReportState.idle => Icons.send,
-                        _ReportState.sending => Icons.sync,
-                        _ReportState.sent => Icons.check_circle,
-                      },
-                    ),
-                    label: Text(
-                      switch (_reportState) {
-                        _ReportState.idle => 'Envoyer le signalement',
-                        _ReportState.sending => 'Envoi...',
-                        _ReportState.sent => 'Signalé !',
-                      },
-                    ),
+                const Icon(Icons.circle, size: 8, color: GabColors.primary),
+                const SizedBox(width: 6),
+                Text(
+                  'EN LIGNE',
+                  style: TextStyle(
+                    color: GabColors.primary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Incidents ouverts',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  color: GabColors.danger.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: const Text(
-                  '2 actifs',
-                  style: TextStyle(
-                    color: GabColors.danger,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _OpenIncidentCard(
-            icon: Icons.emergency,
-            iconColor: GabColors.danger,
-            iconBackground: GabColors.danger.withValues(alpha: 0.12),
-            borderColor: GabColors.danger,
-            title: 'Accident Mineur',
-            statusLabel: 'Signalé',
-            statusColor: GabColors.danger,
-            description: 'Moto bloquée suite à une collision légère. Attente assistance.',
-            timeAgo: 'Il y a 15 min',
-            onDetails: () => _showIncidentDetails(
-              context,
-              'Accident Mineur',
-              'Moto bloquée suite à une collision légère. Attente assistance.\n\n'
-                  'Statut : Signalé · Il y a 15 min',
-            ),
-          ),
-          const SizedBox(height: 12),
-          _OpenIncidentCard(
-            icon: Icons.person_off,
-            iconColor: const Color(0xFFC16A00),
-            iconBackground: const Color(0xFFC16A00).withValues(alpha: 0.12),
-            borderColor: const Color(0xFFC16A00),
-            title: 'Client absent',
-            statusLabel: 'En résolution',
-            statusColor: const Color(0xFFC16A00),
-            description: 'Le client ne répond pas aux appels. Support contacté.',
-            timeAgo: 'Il y a 42 min',
-            onDetails: () => _showIncidentDetails(
-              context,
-              'Client absent',
-              'Le client ne répond pas aux appels. Support contacté.\n\n'
-                  'Statut : En résolution · Il y a 42 min',
-            ),
-          ),
         ],
       ),
-    ),
-  );
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Détails de l'incident",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Type d'incident",
+                    style: TextStyle(color: GabColors.muted, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedTypeCode,
+                    isExpanded: true,
+                    hint: const Text('Sélectionner le type'),
+                    items: _types
+                        .map(
+                          (type) => DropdownMenuItem(
+                            value: type.$1,
+                            child: Text(type.$2, overflow: TextOverflow.ellipsis),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => _selectedTypeCode = value),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Sévérité',
+                    style: TextStyle(color: GabColors.muted, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: List.generate(3, (index) {
+                      final selected = _severity == index;
+                      final color = _severityColors[index];
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(right: index < 2 ? 8 : 0),
+                          child: InkWell(
+                            onTap: () => setState(() => _severity = index),
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              height: 56,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: selected ? color : Colors.transparent,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: selected ? Colors.transparent : GabColors.outlineVariant,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Text(
+                                _severityLabels[index],
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: selected ? Colors.white : GabColors.muted,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Description',
+                    style: TextStyle(color: GabColors.muted, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _descriptionController,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      hintText: 'Veuillez décrire brièvement le problème...',
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton.icon(
+                      onPressed: _reportState == _ReportState.idle ? _submit : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _reportState == _ReportState.sent
+                            ? GabColors.routeBlue
+                            : GabColors.primary,
+                        disabledBackgroundColor: _reportState == _ReportState.sent
+                            ? GabColors.routeBlue
+                            : GabColors.primary,
+                        disabledForegroundColor: Colors.white,
+                      ),
+                      icon: Icon(
+                        switch (_reportState) {
+                          _ReportState.idle => Icons.send,
+                          _ReportState.sending => Icons.sync,
+                          _ReportState.sent => Icons.check_circle,
+                        },
+                      ),
+                      label: Text(
+                        switch (_reportState) {
+                          _ReportState.idle => 'Envoyer le signalement',
+                          _ReportState.sending => 'Envoi...',
+                          _ReportState.sent => 'Signalé !',
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Incidents ouverts',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: GabColors.danger.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${openIncidents.length} actif${openIncidents.length > 1 ? 's' : ''}',
+                    style: const TextStyle(
+                      color: GabColors.danger,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (openIncidents.isEmpty)
+              const Text(
+                'Aucun incident actif sur cette course.',
+                style: TextStyle(color: GabColors.muted),
+              )
+            else
+              for (final incident in openIncidents) ...[
+                _OpenIncidentCard(
+                  icon: _iconForType(incident.incidentType),
+                  iconColor: _colorForSeverityLabel(incident.severityLabel),
+                  iconBackground: _colorForSeverityLabel(
+                    incident.severityLabel,
+                  ).withValues(alpha: 0.12),
+                  borderColor: _colorForSeverityLabel(incident.severityLabel),
+                  title: incident.incidentTypeLabel,
+                  statusLabel: incident.statusLabel,
+                  statusColor: GabColors.danger,
+                  description: incident.description,
+                  timeAgo: _timeAgo(incident.createdAt),
+                  onDetails: () => _showIncidentDetails(
+                    context,
+                    incident.incidentTypeLabel,
+                    '${incident.description}\n\n'
+                    'Statut : ${incident.statusLabel} · ${_timeAgo(incident.createdAt)}',
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _OpenIncidentCard extends StatelessWidget {
