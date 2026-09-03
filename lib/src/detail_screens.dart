@@ -1,9 +1,74 @@
 import 'package:flutter/material.dart';
 
+import 'core/api_client.dart';
+import 'core/courier_api.dart';
 import 'core/theme.dart';
+import 'courier_shell.dart' show formatFcfa;
 
-class AvailableCourseDetailScreen extends StatelessWidget {
-  const AvailableCourseDetailScreen({super.key});
+class AvailableCourseDetailScreen extends StatefulWidget {
+  const AvailableCourseDetailScreen({required this.deliveryId, super.key});
+  final int? deliveryId;
+
+  @override
+  State<AvailableCourseDetailScreen> createState() => _AvailableCourseDetailScreenState();
+}
+
+class _AvailableCourseDetailScreenState extends State<AvailableCourseDetailScreen> {
+  final _api = CourierApi.fromSession();
+  CourierDelivery? _delivery;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final deliveries = await _api.fetchAvailableDeliveries();
+      if (!mounted) return;
+      final match = deliveries.where((d) => d.id == widget.deliveryId).toList();
+      setState(() {
+        _delivery = match.isEmpty ? null : match.first;
+        _error = match.isEmpty
+            ? "Cette course n'est plus disponible — elle a peut-être déjà été affectée à un autre livreur."
+            : null;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
+
+  void _applyForCourse(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Candidature'),
+        content: const Text(
+          "La candidature en libre-service n'est pas encore disponible — "
+          "l'affectation des courses reste manuelle, décidée par le Staff "
+          "Gab'Pharma.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _sectionTitle(String title) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
@@ -36,49 +101,66 @@ class AvailableCourseDetailScreen extends StatelessWidget {
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
   );
 
-  void _applyForCourse(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Candidature envoyée. Vous serez notifié dès que le Staff confirme l’affectation.',
-        ),
-      ),
-    );
-    Navigator.pop(context);
-  }
-
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: GabColors.background,
-    appBar: AppBar(
+  Widget build(BuildContext context) {
+    final delivery = _delivery;
+    return Scaffold(
       backgroundColor: GabColors.background,
-      elevation: 0,
-      title: const Text(
-        'Détails Course',
-        style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800),
-      ),
-      actions: const [
-        Padding(
-          padding: EdgeInsets.only(right: 16),
-          child: Row(
-            children: [
-              Icon(Icons.circle, size: 9, color: GabColors.primary),
-              SizedBox(width: 6),
-              Text(
-                'DISPONIBLE',
-                style: TextStyle(
-                  color: GabColors.primary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
+      appBar: AppBar(
+        backgroundColor: GabColors.background,
+        elevation: 0,
+        title: const Text(
+          'Détails Course',
+          style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800),
         ),
-      ],
-    ),
-    body: SafeArea(
-      child: Column(
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: Row(
+              children: [
+                Icon(Icons.circle, size: 9, color: GabColors.primary),
+                SizedBox(width: 6),
+                Text(
+                  'DISPONIBLE',
+                  style: TextStyle(
+                    color: GabColors.primary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null || delivery == null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.info_outline, size: 40, color: GabColors.muted),
+                      const SizedBox(height: 12),
+                      Text(
+                        _error ?? 'Course introuvable.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: GabColors.muted),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : Column(
         children: [
           Expanded(
             child: ListView(
@@ -146,28 +228,19 @@ class AvailableCourseDetailScreen extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                "Pharmacie de l'Estuaire",
-                                style: TextStyle(
+                              Text(
+                                delivery.pharmacy.name,
+                                style: const TextStyle(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w800,
                                   color: GabColors.primary,
                                 ),
                               ),
-                              const Text(
-                                'Boulevard Triomphal, Libreville',
-                                style: TextStyle(color: GabColors.muted),
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  _InfoChip(
-                                    icon: Icons.social_distance,
-                                    label: '1.2 km',
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _InfoChip(icon: Icons.timer_outlined, label: '5 min'),
-                                ],
+                              Text(
+                                delivery.pharmacy.address.isNotEmpty
+                                    ? delivery.pharmacy.address
+                                    : delivery.pharmacy.zoneLabel,
+                                style: const TextStyle(color: GabColors.muted),
                               ),
                             ],
                           ),
@@ -227,18 +300,18 @@ class AvailableCourseDetailScreen extends StatelessWidget {
                                 color: Colors.white.withValues(alpha: 0.92),
                                 borderRadius: BorderRadius.circular(999),
                               ),
-                              child: const Row(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.location_on,
                                     size: 16,
                                     color: GabColors.primary,
                                   ),
-                                  SizedBox(width: 6),
+                                  const SizedBox(width: 6),
                                   Text(
-                                    'Owendo - Cité SNI',
-                                    style: TextStyle(
+                                    delivery.zoneLabel,
+                                    style: const TextStyle(
                                       fontWeight: FontWeight.w800,
                                       fontSize: 13,
                                     ),
@@ -283,37 +356,37 @@ class AvailableCourseDetailScreen extends StatelessWidget {
                 _sectionTitle('DÉTAILS FINANCIERS'),
                 _card(
                   children: [
-                    const Row(
+                    Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
+                        const Text(
                           'Frais de livraison',
                           style: TextStyle(color: GabColors.muted),
                         ),
-                        Text('2 500 FCFA'),
+                        Text('${formatFcfa(delivery.deliveryFeeFcfa)} FCFA'),
                       ],
                     ),
                     const SizedBox(height: 14),
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 14),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
                       child: DecoratedBox(
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           border: Border(
                             bottom: BorderSide(color: GabColors.outlineVariant),
                           ),
                         ),
                         child: Padding(
-                          padding: EdgeInsets.only(bottom: 14),
+                          padding: const EdgeInsets.only(bottom: 14),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
+                              const Text(
                                 'Commission Plateforme',
                                 style: TextStyle(color: GabColors.muted),
                               ),
                               Text(
-                                '- 500 FCFA',
-                                style: TextStyle(color: GabColors.danger),
+                                '- ${formatFcfa(delivery.platformShareFcfa)} FCFA',
+                                style: const TextStyle(color: GabColors.danger),
                               ),
                             ],
                           ),
@@ -331,42 +404,15 @@ class AvailableCourseDetailScreen extends StatelessWidget {
                             color: GabColors.primary,
                           ),
                         ),
-                        const Text(
-                          '2 000 FCFA',
-                          style: TextStyle(
+                        Text(
+                          '${formatFcfa(delivery.courierShareFcfa)} FCFA',
+                          style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
                             color: GabColors.primary,
                           ),
                         ),
                       ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                _sectionTitle('CONTRAINTES & NOTES'),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ConstraintTile(
-                        icon: Icons.ac_unit,
-                        iconColor: GabColors.primary,
-                        background: GabColors.primary.withValues(alpha: 0.06),
-                        title: 'Chaîne du froid',
-                        titleColor: GabColors.primary,
-                        caption: 'Sac isotherme requis pour le transport.',
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _ConstraintTile(
-                        icon: Icons.inventory_2_outlined,
-                        iconColor: GabColors.muted,
-                        background: const Color(0xFFDCECE3),
-                        title: 'Colis Fragile',
-                        titleColor: GabColors.ink,
-                        caption: 'Contient des flacons en verre.',
-                      ),
                     ),
                   ],
                 ),
@@ -387,73 +433,9 @@ class AvailableCourseDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-    ),
-  );
-}
-
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-    decoration: BoxDecoration(
-      color: const Color(0xFFDCECE3),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: GabColors.muted),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12, color: GabColors.muted)),
-      ],
-    ),
-  );
-}
-
-class _ConstraintTile extends StatelessWidget {
-  const _ConstraintTile({
-    required this.icon,
-    required this.iconColor,
-    required this.background,
-    required this.title,
-    required this.titleColor,
-    required this.caption,
-  });
-  final IconData icon;
-  final Color iconColor;
-  final Color background;
-  final String title;
-  final Color titleColor;
-  final String caption;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: background,
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: iconColor),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          style: TextStyle(fontWeight: FontWeight.w800, color: titleColor),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          caption,
-          style: const TextStyle(fontSize: 11, color: GabColors.muted),
-        ),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
 class ActiveDeliveryScreen extends StatefulWidget {

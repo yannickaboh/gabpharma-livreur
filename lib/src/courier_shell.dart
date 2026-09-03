@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'core/api_client.dart';
 import 'core/auth_session.dart';
+import 'core/courier_api.dart';
 import 'core/theme.dart';
 import 'widgets.dart';
 
@@ -11,32 +13,49 @@ class CourierShell extends StatefulWidget {
 }
 
 class _CourierShellState extends State<CourierShell> {
+  final _api = CourierApi.fromSession();
   int index = 0;
-  bool online = true;
+  bool online = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvailability();
+  }
+
+  Future<void> _loadAvailability() async {
+    try {
+      final summary = await _api.fetchSummary();
+      if (!mounted) return;
+      setState(() => online = summary.availability.isAvailableForDelivery);
+    } on ApiException {
+      // Le statut reste tel quel (hors ligne par défaut) ; les écrans
+      // enfants ont leur propre gestion d'erreur pour leurs propres appels.
+    }
+  }
+
+  Future<void> _setOnline(bool value) async {
+    final previous = online;
+    setState(() => online = value);
+    try {
+      final availability = await _api.setAvailable(value);
+      if (!mounted) return;
+      setState(() => online = availability.isAvailableForDelivery);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => online = previous);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final pages = [
-      CourierHome(
-        online: online,
-        onOnlineChanged: (value) => setState(() => online = value),
-      ),
-      AvailableDeliveries(
-        online: online,
-        onOnlineChanged: (value) => setState(() => online = value),
-      ),
-      DeliveryHistory(
-        online: online,
-        onOnlineChanged: (value) => setState(() => online = value),
-      ),
-      EarningsScreen(
-        online: online,
-        onOnlineChanged: (value) => setState(() => online = value),
-      ),
-      CourierProfile(
-        online: online,
-        onOnlineChanged: (value) => setState(() => online = value),
-      ),
+      CourierHome(online: online, onOnlineChanged: _setOnline),
+      AvailableDeliveries(online: online, onOnlineChanged: _setOnline),
+      DeliveryHistory(online: online, onOnlineChanged: _setOnline),
+      EarningsScreen(online: online, onOnlineChanged: _setOnline),
+      CourierProfile(online: online, onOnlineChanged: _setOnline),
     ];
     return Scaffold(
       body: Column(
@@ -74,7 +93,17 @@ class _CourierShellState extends State<CourierShell> {
   }
 }
 
-class CourierHome extends StatelessWidget {
+String formatFcfa(int value) {
+  final digits = value.abs().toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('.');
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
+}
+
+class CourierHome extends StatefulWidget {
   const CourierHome({
     required this.online,
     required this.onOnlineChanged,
@@ -82,6 +111,48 @@ class CourierHome extends StatelessWidget {
   });
   final bool online;
   final ValueChanged<bool> onOnlineChanged;
+
+  @override
+  State<CourierHome> createState() => _CourierHomeState();
+}
+
+class _CourierHomeState extends State<CourierHome> {
+  final _api = CourierApi.fromSession();
+  CourierSummary? _summary;
+  List<CourierDelivery> _active = const [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final results = await Future.wait([
+        _api.fetchSummary(),
+        _api.fetchActiveDeliveries(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _summary = results[0] as CourierSummary;
+        _active = results[1] as List<CourierDelivery>;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
 
   void _showUpdateInfo(BuildContext context) {
     showDialog<void>(
@@ -103,277 +174,282 @@ class CourierHome extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      _HomeHeader(online: online, onToggle: () => onOnlineChanged(!online)),
-      Expanded(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) {
+    final user = AuthSession.instance.currentUser;
+    final summary = _summary;
+    return Column(
+      children: [
+        _HomeHeader(
+          online: widget.online,
+          onToggle: () => widget.onOnlineChanged(!widget.online),
+        ),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+              ? _HomeErrorState(message: _error!, onRetry: _load)
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                     children: [
-                      Text(
-                        'Bonjour,',
-                        style: TextStyle(color: GabColors.muted),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Bonjour,',
+                                  style: TextStyle(color: GabColors.muted),
+                                ),
+                                Text(
+                                  user?.fullName ?? '',
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    color: GabColors.ink,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: GabColors.primary, width: 2),
+                              color: GabColors.softGreen,
+                            ),
+                            child: Center(
+                              child: Text(
+                                user?.initials ?? '',
+                                style: const TextStyle(
+                                  color: GabColors.primary,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        'Jean-Paul Mba',
+                      const SizedBox(height: 24),
+                      if (_active.isNotEmpty) ...[
+                        _ActiveCourseCard(
+                          delivery: _active.first,
+                          onTap: () => Navigator.pushNamed(context, '/active-delivery'),
+                          onStartRoute: () => Navigator.pushNamed(context, '/map'),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _StatCard(
+                              icon: Icons.task_alt,
+                              iconColor: GabColors.secondary,
+                              caption: 'Total',
+                              value: (summary?.completedCount ?? 0).toString().padLeft(2, '0'),
+                              label: 'Courses terminées',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _StatCard(
+                              icon: Icons.payments_outlined,
+                              iconColor: GabColors.routeBlue,
+                              caption: 'Solde',
+                              value: formatFcfa(summary?.balanceFcfa ?? 0),
+                              label: (summary?.balanceFcfa ?? 0) >= 0
+                                  ? 'FCFA à reverser'
+                                  : 'FCFA à recevoir',
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'ALERTES & INFOS',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1,
+                              color: GabColors.muted,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.pushNamed(context, '/notifications'),
+                            child: const Text(
+                              'Tout voir',
+                              style: TextStyle(
+                                color: GabColors.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: () => _showUpdateInfo(context),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCECE3),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: GabColors.secondary.withValues(alpha: 0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.info,
+                                  color: GabColors.secondary,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Mise à jour disponible',
+                                      style: TextStyle(fontWeight: FontWeight.w700),
+                                    ),
+                                    Text(
+                                      'Version 2.4.1 disponible avec de nouveaux tracés GPS.',
+                                      style: TextStyle(color: GabColors.muted),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right, color: GabColors.muted),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'ZONE ACTUELLE',
                         style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: GabColors.ink,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1,
+                          color: GabColors.muted,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: () => Navigator.pushNamed(context, '/availability'),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          height: 150,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFFBFE3D0), Color(0xFF8FCBAE)],
+                            ),
+                          ),
+                          child: Stack(
+                            children: [
+                              const Positioned(
+                                right: 16,
+                                top: 16,
+                                child: Icon(
+                                  Icons.map_outlined,
+                                  color: Colors.white70,
+                                  size: 40,
+                                ),
+                              ),
+                              Positioned(
+                                left: 12,
+                                right: 12,
+                                bottom: 12,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.92),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.circle,
+                                        size: 10,
+                                        color: GabColors.routeBlue,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          summary != null &&
+                                                  summary.availability.coverageZoneLabels.isNotEmpty
+                                              ? summary.availability.coverageZoneLabels.join(', ')
+                                              : 'Aucune zone configurée',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: GabColors.primary, width: 2),
-                    color: GabColors.softGreen,
-                  ),
-                  child: const Icon(Icons.person, color: GabColors.primary),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _ActiveCourseCard(
-              onTap: () => Navigator.pushNamed(context, '/active-delivery'),
-              onStartRoute: () => Navigator.pushNamed(context, '/map'),
-            ),
-            const SizedBox(height: 24),
-            const Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.task_alt,
-                    iconColor: GabColors.secondary,
-                    caption: "Aujourd'hui",
-                    value: '08',
-                    label: 'Courses terminées',
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.payments_outlined,
-                    iconColor: GabColors.routeBlue,
-                    caption: 'Gains',
-                    value: '42.500',
-                    label: 'FCFA cumulés',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'ALERTES & INFOS',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1,
-                    color: GabColors.muted,
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/notifications'),
-                  child: const Text(
-                    'Tout voir',
-                    style: TextStyle(
-                      color: GabColors.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            InkWell(
-              onTap: () => Navigator.pushNamed(context, '/documents'),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: GabColors.danger.withValues(alpha: 0.08),
-                  borderRadius: const BorderRadius.horizontal(
-                    right: Radius.circular(12),
-                  ),
-                  border: const Border(
-                    left: BorderSide(color: GabColors.danger, width: 4),
-                  ),
-                ),
-                child: const Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.report_problem_outlined, color: GabColors.danger),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Assurance véhicule',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: GabColors.danger,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text.rich(
-                            TextSpan(
-                              style: TextStyle(color: GabColors.danger),
-                              children: [
-                                TextSpan(text: 'Votre document expire dans '),
-                                TextSpan(
-                                  text: '3 jours',
-                                  style: TextStyle(fontWeight: FontWeight.w800),
-                                ),
-                                TextSpan(text: '. Veuillez le renouveler.'),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            InkWell(
-              onTap: () => _showUpdateInfo(context),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCECE3),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: GabColors.secondary.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.info,
-                        color: GabColors.secondary,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Mise à jour disponible',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          Text(
-                            'Version 2.4.1 disponible avec de nouveaux tracés GPS.',
-                            style: TextStyle(color: GabColors.muted),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: GabColors.muted),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'ZONE ACTUELLE (LIBREVILLE)',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1,
-                color: GabColors.muted,
-              ),
-            ),
-            const SizedBox(height: 12),
-            InkWell(
-              onTap: () => Navigator.pushNamed(context, '/availability'),
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                height: 150,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFFBFE3D0), Color(0xFF8FCBAE)],
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    const Positioned(
-                      right: 16,
-                      top: 16,
-                      child: Icon(
-                        Icons.map_outlined,
-                        color: Colors.white70,
-                        size: 40,
-                      ),
-                    ),
-                    Positioned(
-                      left: 12,
-                      right: 12,
-                      bottom: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.circle,
-                              size: 10,
-                              color: GabColors.routeBlue,
-                            ),
-                            SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                'Akwango - En zone de forte demande',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ),
+      ],
+    );
+  }
+}
+
+class _HomeErrorState extends StatelessWidget {
+  const _HomeErrorState({required this.message, required this.onRetry});
+  final String message;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off, size: 40, color: GabColors.muted),
+          const SizedBox(height: 12),
+          Text(message, textAlign: TextAlign.center, style: const TextStyle(color: GabColors.muted)),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Réessayer'),
+          ),
+        ],
       ),
-    ],
+    ),
   );
 }
 
@@ -464,7 +540,12 @@ class _HomeHeader extends StatelessWidget {
 }
 
 class _ActiveCourseCard extends StatelessWidget {
-  const _ActiveCourseCard({required this.onTap, required this.onStartRoute});
+  const _ActiveCourseCard({
+    required this.delivery,
+    required this.onTap,
+    required this.onStartRoute,
+  });
+  final CourierDelivery delivery;
   final VoidCallback onTap;
   final VoidCallback onStartRoute;
 
@@ -495,11 +576,11 @@ class _ActiveCourseCard extends StatelessWidget {
                         child: const Icon(Icons.route, color: Colors.white),
                       ),
                       const SizedBox(width: 12),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Destination',
                               style: TextStyle(
                                 color: Colors.white70,
@@ -507,12 +588,13 @@ class _ActiveCourseCard extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              'Pharmacie du Bord de Mer',
-                              style: TextStyle(
+                              delivery.pharmacy.name,
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
@@ -542,28 +624,29 @@ class _ActiveCourseCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            const DecoratedBox(
-              decoration: BoxDecoration(
+            DecoratedBox(
+              decoration: const BoxDecoration(
                 border: Border(top: BorderSide(color: Colors.white24)),
               ),
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 child: Row(
                   children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'Client',
                             style: TextStyle(color: Colors.white70, fontSize: 12),
                           ),
                           Text(
-                            'Mme. Obiang',
-                            style: TextStyle(
+                            delivery.recipientName ?? '—',
+                            style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
                             ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -572,13 +655,13 @@ class _ActiveCourseCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Temps estimé',
+                          const Text(
+                            'Statut',
                             style: TextStyle(color: Colors.white70, fontSize: 12),
                           ),
                           Text(
-                            '12 min',
-                            style: TextStyle(
+                            delivery.statusLabel,
+                            style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
                             ),
@@ -658,7 +741,7 @@ class _StatCard extends StatelessWidget {
   );
 }
 
-class AvailableDeliveries extends StatelessWidget {
+class AvailableDeliveries extends StatefulWidget {
   const AvailableDeliveries({
     required this.online,
     required this.onOnlineChanged,
@@ -667,107 +750,130 @@ class AvailableDeliveries extends StatelessWidget {
   final bool online;
   final ValueChanged<bool> onOnlineChanged;
 
-  static const _courses = [
-    (
-      pharmacy: 'Pharmacie de l\'Etoile',
-      zone: 'Akanda - Angondjé',
-      revenue: '1 500 FCFA',
-      distance: '2.4 km',
-    ),
-    (
-      pharmacy: 'Pharmacie du Pont',
-      zone: 'Libreville - Nzeng Ayong',
-      revenue: '2 200 FCFA',
-      distance: '5.1 km',
-    ),
-    (
-      pharmacy: 'Pharmacie Okala',
-      zone: 'Okala - Mikolongo',
-      revenue: '1 800 FCFA',
-      distance: '3.8 km',
-    ),
-  ];
+  @override
+  State<AvailableDeliveries> createState() => _AvailableDeliveriesState();
+}
+
+class _AvailableDeliveriesState extends State<AvailableDeliveries> {
+  final _api = CourierApi.fromSession();
+  List<CourierDelivery>? _deliveries;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant AvailableDeliveries oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.online != widget.online) _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final deliveries = await _api.fetchAvailableDeliveries();
+      if (!mounted) return;
+      setState(() {
+        _deliveries = deliveries;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      _HomeHeader(online: online, onToggle: () => onOnlineChanged(!online)),
+      _HomeHeader(
+        online: widget.online,
+        onToggle: () => widget.onOnlineChanged(!widget.online),
+      ),
       Expanded(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-          children: [
-            const Text(
-              'Courses disponibles',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: GabColors.ink,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              "Consultez les commandes en attente d'attribution.",
-              style: TextStyle(color: GabColors.muted),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFA8F4B9).withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFF8CD79F)),
-              ),
-              child: const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info, color: GabColors.secondary, size: 20),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      "Affectation manuelle par le Staff Gab'Pharma. Les "
-                      'missions vous seront attribuées directement sur '
-                      'votre interface active.',
-                      style: TextStyle(color: GabColors.secondary),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? _HomeErrorState(message: _error!, onRetry: _load)
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                  children: [
+                    const Text(
+                      'Courses disponibles',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: GabColors.ink,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            if (_courses.isEmpty)
-              const _EmptyCoursesState()
-            else
-              for (final course in _courses)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _AvailableCourseCard(
-                    pharmacy: course.pharmacy,
-                    zone: course.zone,
-                    revenue: course.revenue,
-                    distance: course.distance,
-                    onTap: () =>
-                        Navigator.pushNamed(context, '/available-detail'),
-                  ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Consultez les commandes en attente d'attribution.",
+                      style: TextStyle(color: GabColors.muted),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFA8F4B9).withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFF8CD79F)),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info, color: GabColors.secondary, size: 20),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "Affectation manuelle par le Staff Gab'Pharma. Les "
+                              'missions vous seront attribuées directement sur '
+                              'votre interface active.',
+                              style: TextStyle(color: GabColors.secondary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    if ((_deliveries ?? const []).isEmpty)
+                      const _EmptyCoursesState()
+                    else
+                      for (final delivery in _deliveries!)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _AvailableCourseCard(
+                            delivery: delivery,
+                            onTap: () => Navigator.pushNamed(
+                              context,
+                              '/available-detail',
+                              arguments: {'deliveryId': delivery.id},
+                            ),
+                          ),
+                        ),
+                  ],
                 ),
-          ],
-        ),
+              ),
       ),
     ],
   );
 }
 
 class _AvailableCourseCard extends StatelessWidget {
-  const _AvailableCourseCard({
-    required this.pharmacy,
-    required this.zone,
-    required this.revenue,
-    required this.distance,
-    required this.onTap,
-  });
-  final String pharmacy;
-  final String zone;
-  final String revenue;
-  final String distance;
+  const _AvailableCourseCard({required this.delivery, required this.onTap});
+  final CourierDelivery delivery;
   final VoidCallback onTap;
 
   @override
@@ -803,7 +909,7 @@ class _AvailableCourseCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        pharmacy,
+                        delivery.pharmacy.name,
                         style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
@@ -820,7 +926,7 @@ class _AvailableCourseCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            zone,
+                            delivery.zoneLabel,
                             style: const TextStyle(
                               color: GabColors.muted,
                               fontSize: 12,
@@ -851,53 +957,25 @@ class _AvailableCourseCard extends StatelessWidget {
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Divider(height: 1, color: GabColors.outlineVariant),
             ),
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'REVENU EST.',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.6,
-                          color: GabColors.muted,
-                        ),
-                      ),
-                      Text(
-                        revenue,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: GabColors.primary,
-                        ),
-                      ),
-                    ],
+                const Text(
+                  'PART LIVREUR EST.',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: GabColors.muted,
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text(
-                      'DISTANCE',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
-                        color: GabColors.muted,
-                      ),
-                    ),
-                    Text(
-                      distance,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: GabColors.ink,
-                      ),
-                    ),
-                  ],
+                Text(
+                  '${formatFcfa(delivery.courierShareFcfa)} FCFA',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: GabColors.primary,
+                  ),
                 ),
               ],
             ),

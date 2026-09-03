@@ -20,7 +20,10 @@ class GabPharmaLivreurApp extends StatelessWidget {
       '/verify': (_) => const VerifyScreen(),
       '/home': (_) => const CourierShell(),
       '/password-reset': (_) => const PasswordResetScreen(),
-      '/available-detail': (_) => const AvailableCourseDetailScreen(),
+      '/available-detail': (context) {
+        final args = ModalRoute.of(context)?.settings.arguments as Map?;
+        return AvailableCourseDetailScreen(deliveryId: args?['deliveryId'] as int?);
+      },
       '/active-delivery': (_) => const ActiveDeliveryScreen(),
       '/map': (_) => const NavigationMapScreen(),
       '/incident': (_) => const IncidentScreen(),
