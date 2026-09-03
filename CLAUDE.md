@@ -1,7 +1,7 @@
 # Gab'Pharma Livreur — suivi d'implémentation Flutter
 
-**Dernière mise à jour :** 28 août 2026
-**Mode actuel :** les 4 lots et les 18 écrans sont terminés et validés visuellement sur le S8, toujours en mode démonstration par défaut (`AppConfig.demoMode`). **Le branchement réel à l'API mobile Django a démarré le 28 août 2026** : le Lot 1 (connexion, 2FA, restauration de session, déconnexion) est branché et vérifié de bout en bout sur S8 physique contre un backend Django local — voir `branchement_livreur.md` pour le détail module par module, `api_contrat_besoins.md` pour l'audit écran par écran vs le contrat API, et `api_utilitaires.md` pour les services tiers (push, cartographie, etc.). `SimpleFeatureScreen` n'est plus utilisé par aucune route et peut être supprimé de `lib/src/detail_screens.dart` au prochain nettoyage.
+**Dernière mise à jour :** 3 septembre 2026
+**Mode actuel :** les 4 lots et les 18 écrans sont terminés et validés visuellement sur le S8. **Le branchement réel à l'API mobile Django a démarré le 28 août 2026** et couvre désormais l'authentification complète (Lot 1 + mot de passe oublié), l'Accueil/Courses disponibles/Détail course, ainsi que la Course active et le Signalement d'incident — tous branchés et vérifiés de bout en bout sur S8 physique contre un backend Django local. Les écrans restants (Carte/Historique/Revenus/Zones/Documents/Notifications/Support/Profil) tournent encore en mode démonstration (`AppConfig.demoMode`). Voir `branchement_livreur.md` pour le détail module par module, `api_contrat_besoins.md` pour l'audit écran par écran vs le contrat API, et `api_utilitaires.md` pour les services tiers (push, cartographie, etc.). `SimpleFeatureScreen` n'est plus utilisé par aucune route et peut être supprimé de `lib/src/detail_screens.dart` au prochain nettoyage. **Point d'attention transverse non traité :** aucun rafraîchissement automatique du jeton d'accès n'est implémenté côté Flutter (voir `branchement_livreur.md` §4) — à corriger avant toute mise en production réelle.
 
 ## Projet
 
@@ -102,8 +102,11 @@ Pour scripter la navigation (connexion + 2FA) lors des tests, utiliser `adb shel
 ## Prochaine étape
 
 Les 18 écrans des 4 lots sont construits et validés visuellement sur le S8. Le branchement à l'API réelle est en cours (voir `branchement_livreur.md`) :
-- **Lot 1 (Auth) branché et vérifié** le 28 août 2026 — connexion, 2FA (succès et échec réels), renvoi de code, restauration de session, déconnexion.
-- **Prochain module à brancher** : mot de passe oublié (câblé côté Flutter, pas encore re-testé isolément sur device), puis Accueil/Courses/Détail course selon l'ordre de `api_contrat_besoins.md` §7.
+- **Lot 1 (Auth) + mot de passe oublié branchés et vérifiés** — connexion, 2FA (succès et échec réels), renvoi de code, restauration de session, déconnexion, réinitialisation de mot de passe complète.
+- **Accueil, Courses disponibles, Détail course branchés et vérifiés** le 3 septembre 2026 — voir `branchement_livreur.md` §3.
+- **Course active et Signalement d'incident branchés et vérifiés** le 3 septembre 2026 — « Client absent » a son propre parcours dédié, distinct du signalement générique ; taxonomie d'incidents alignée sur les 6 valeurs réelles du backend. Voir `branchement_livreur.md` §4.
+- **Découverte à traiter avant d'aller plus loin (prioritaire, transverse) :** aucun rafraîchissement automatique du jeton d'accès n'est implémenté — passé les 20 minutes de `ACCESS_TOKEN_LIFETIME`, tout appel authentifié échoue avec une erreur brute affichée telle quelle, sans redirection vers l'écran de connexion. Voir `branchement_livreur.md` §4 pour le détail.
+- **Prochain module à brancher** : Carte et navigation (écran 09, bouton « ouvrir navigation externe » uniquement), puis Historique/Revenus/Zones selon l'ordre de `api_contrat_besoins.md` §7.
 - Documents (écran 14) : le backend est désormais prêt côté API (`/mobile/courier/verification/...`, ajouté le 28 août 2026 dans le dépôt Django) — le document « Assurance » sera retiré de l'écran au branchement (décision actée, pas de catégorie backend pour lui).
 - Nettoyage restant : supprimer la classe `SimpleFeatureScreen` désormais inutilisée dans `lib/src/detail_screens.dart`.
 - Ajouter le SDK `google_maps_flutter` au `pubspec.yaml` pour remplacer les cartes `CustomPainter` des écrans 09 et 13 par de vraies cartes (la clé API est déjà préparée, voir Lot 2) — non commencé, aucune décision prise sur OSM/Leaflet vs Google Maps (voir `api_utilitaires.md` §2).
