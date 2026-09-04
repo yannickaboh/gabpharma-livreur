@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'core/api_client.dart';
 import 'core/courier_api.dart';
@@ -445,11 +448,15 @@ class ActiveDeliveryScreen extends StatefulWidget {
 }
 
 class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
+  static const _positionPingInterval = Duration(seconds: 45);
+  static const _positionActiveStatuses = {'assigned', 'picked_up', 'in_transit'};
+
   final _api = CourierApi.fromSession();
   CourierDelivery? _delivery;
   bool _loading = true;
   bool _actionLoading = false;
   String? _error;
+  Timer? _positionTimer;
 
   final List<TextEditingController> _otpControllers = List.generate(
     6,
@@ -467,6 +474,7 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
 
   @override
   void dispose() {
+    _positionTimer?.cancel();
     for (final controller in _otpControllers) {
       controller.dispose();
     }
@@ -475,6 +483,47 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
     }
     _recipientNameController.dispose();
     super.dispose();
+  }
+
+  /// Demarre ou arrete le ping de position selon le statut reel de la course
+  /// (voir cadrage_suivi_temps_reel_livreur.md cote depot Django : jamais de
+  /// position hors course active, jamais en arriere-plan pour ce premier jet).
+  void _syncPositionTimer() {
+    final shouldPing = _positionActiveStatuses.contains(_delivery?.status);
+    if (shouldPing && _positionTimer == null) {
+      _positionTimer = Timer.periodic(_positionPingInterval, (_) => _sendPositionPing());
+      _sendPositionPing();
+    } else if (!shouldPing && _positionTimer != null) {
+      _positionTimer?.cancel();
+      _positionTimer = null;
+    }
+  }
+
+  Future<void> _sendPositionPing() async {
+    final delivery = _delivery;
+    if (delivery == null) return;
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      await _api.updatePosition(
+        delivery.id,
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+    } catch (_) {
+      // Best-effort : la position n'est jamais critique pour la livraison
+      // elle-meme, un echec (GPS coupe, pas de reseau...) doit rester silencieux.
+    }
   }
 
   Future<void> _load() async {
@@ -493,6 +542,7 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
           _recipientNameController.text = _delivery!.recipientName!;
         }
       });
+      _syncPositionTimer();
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -535,6 +585,7 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
         _delivery = delivery;
         _actionLoading = false;
       });
+      _syncPositionTimer();
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() => _actionLoading = false);
@@ -552,6 +603,7 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
         _delivery = delivery;
         _actionLoading = false;
       });
+      _syncPositionTimer();
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() => _actionLoading = false);
@@ -611,6 +663,7 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
         _delivery = delivery;
         _actionLoading = false;
       });
+      _syncPositionTimer();
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() => _actionLoading = false);
@@ -718,6 +771,7 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
                             if (!mounted) return;
                             if (sheetContext.mounted) Navigator.pop(sheetContext);
                             setState(() => _delivery = result.delivery);
+                            _syncPositionTimer();
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(

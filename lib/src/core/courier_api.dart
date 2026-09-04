@@ -307,4 +307,15 @@ class CourierApi {
     });
     return DeliveryIncident.fromJson(json);
   }
+
+  /// Ping de position ponctuel envoye pendant une course en cours
+  /// (assigned/picked_up/in_transit uniquement, rejete par le backend sinon).
+  /// Arrondi a 6 decimales : le GPS renvoie souvent plus de precision que
+  /// n'en accepte le DecimalField cote Django (max_digits=9, decimal_places=6).
+  Future<void> updatePosition(int id, {required double latitude, required double longitude}) {
+    return _client.postJson('/mobile/courier/deliveries/$id/position/', {
+      'latitude': double.parse(latitude.toStringAsFixed(6)),
+      'longitude': double.parse(longitude.toStringAsFixed(6)),
+    });
+  }
 }

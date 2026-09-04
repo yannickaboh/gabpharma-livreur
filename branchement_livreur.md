@@ -88,6 +88,25 @@ Nouveau fichier `lib/src/core/courier_api.dart` : modèles (`Pharmacy`, `Courier
 
 **Vérifié sur S8 le 3 septembre 2026** (jeu de démo `seed_demo_courier_carine_mba`, course active id 6) : erreur OTP réelle affichée (« Code de remise incorrect. »), flux « Client absent » complet (double confirmation + description → `POST .../patient-absence/` → transition réelle vers `returning` confirmée en base Django, incident `patient_absent`/`high`/`open` créé), panneau « Retour à la pharmacie en cours » avec vraie pharmacie, bouton « Client absent » disparaissant après la déclaration (`can_report_absence` redevenu faux). Signalement d'incident générique complet (`wrong_address`/`low` → `POST .../incidents/` → confirmé en base), liste « Incidents ouverts » passée de 2 à 3 en direct avec la vraie description et « À l'instant ». Aucun overflow après les deux corrections ci-dessus.
 
+## 5. Géolocalisation temps réel du livreur (4 septembre 2026)
+
+Nouvelle fonctionnalité (pas un branchement d'écran existant) demandée explicitement par l'utilisateur, en s'appuyant sur le cadrage déjà écrit côté Django (`documentation/cadrage_suivi_temps_reel_livreur.md`, 23 août 2026) plutôt que d'en refaire un. Implémentée des deux côtés (backend + Flutter Livreur) dans la même session.
+
+**Côté backend** (voir `documentation/api_contrat.md` §6 pour le contrat complet) :
+- 3 champs ajoutés sur `Delivery` (`last_position_latitude`/`longitude`/`last_position_at`), pas de nouveau modèle ni d'historique — conforme à la recommandation du cadrage.
+- `POST /mobile/courier/deliveries/<id>/position/` : écrit la dernière position connue, réservé au livreur affecté, uniquement pendant `assigned`/`picked_up`/`in_transit`.
+- `GET /mobile/patient/orders/<id>/` étendu avec `delivery.courier_latitude`/`courier_longitude`/`courier_position_updated_at`, exposés uniquement si la position a moins de 5 minutes (`Delivery.POSITION_STALE_AFTER_MINUTES`) — jamais de position périmée affichée comme "en direct".
+- 2 tests ajoutés, suite `apps.api` à 72 tests au vert, `manage.py check`/`makemigrations --check --dry-run` propres, migration `0004_delivery_last_position_at_and_more` appliquée sur la base de dev.
+
+**Côté Flutter Livreur** :
+- Package `geolocator` ajouté, permissions `ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION` (premier plan uniquement, décision actée — voir le cadrage Django pour le raisonnement complet).
+- `ActiveDeliveryScreen` démarre un ping périodique (45 s, `Timer.periodic`) tant que le statut de la course autorise l'écriture côté backend ; s'arrête automatiquement dès que le statut change (remise, absence patient) ou que l'écran est fermé. Échec silencieux si GPS coupé, permission refusée ou pas de réseau — jamais bloquant pour la livraison elle-même, conformément au cadrage.
+- `CourierApi.updatePosition()` ajouté dans `lib/src/core/courier_api.dart`.
+
+**Bug trouvé et corrigé en testant sur S8 physique** : le GPS du téléphone renvoie une précision à 7 décimales ou plus, alors que le backend n'en accepte que 6 (`DecimalField(decimal_places=6)`) — chaque ping échouait en `400` de façon totalement silencieuse (absorbé par le `catch` volontairement muet du ping), invisible sans ajout temporaire de logs de diagnostic. Fix : arrondi à 6 décimales côté Flutter avant l'envoi (`toStringAsFixed(6)`), aucun changement backend. Voir `documentation/cadrage_suivi_temps_reel_livreur.md` (dépôt Django) pour le détail complet du diagnostic.
+
+**Vérifié de bout en bout sur S8 le 4 septembre 2026** : popup système de permission de localisation déclenché à l'ouverture de l'écran 08, position réelle du téléphone (`0.389221, 9.473121`) confirmée en base Django après correction du bug de précision, puis relue avec succès via un vrai appel authentifié `GET /mobile/patient/orders/23/` (les champs `courier_latitude`/`courier_longitude`/`courier_position_updated_at` sont bien remontés). **Non fait dans cette session : l'affichage côté app Patient** (dépôt Flutter séparé `gabpharma_patient`, hors contexte de cette session) — le backend est prêt à servir cette donnée, reste à placer un point sur la carte de l'écran 17 suivi de livraison côté Patient.
+
 ## Rappel d'environnement pour reprendre cette session de branchement
 
 - Backend local lancé via `python manage.py runserver 127.0.0.1:8004` (Django 4.2.29, dev DB SQLite `db.sqlite3` du dépôt `django projects\gabpharma`) — a tourné en arrière-plan tout au long de cette session, à relancer si arrêté.
