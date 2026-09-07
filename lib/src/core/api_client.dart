@@ -42,10 +42,32 @@ class ApiClient {
   final HttpClient _httpClient;
   String? accessToken;
 
+  /// Appelé quand une requête authentifiée reçoit un 401 et qu'un
+  /// rafraîchissement (via [onRefreshToken]) n'a pas résolu le problème —
+  /// c'est le vrai abandon (déconnexion).
+  void Function()? onUnauthorized;
+
+  /// Tente un rafraîchissement du token d'accès (POST /mobile/auth/refresh/
+  /// côté AuthSession) ; renvoie true si un nouveau `accessToken` a été posé
+  /// sur ce client, auquel cas la requête d'origine est rejouée une fois.
+  Future<bool> Function()? onRefreshToken;
+
   Future<Map<String, dynamic>> getJson(String path) => _send('GET', path);
 
-  Future<Map<String, dynamic>> postJson(String path, [Map<String, dynamic>? body]) =>
+  Future<Map<String, dynamic>> postJson(
+    String path, [
+    Map<String, dynamic>? body,
+  ]) =>
       _send('POST', path, body: body);
+
+  /// Variante utilisée par AuthSession pour l'appel de rafraîchissement
+  /// lui-même : `allowTokenRefresh: false` évite une boucle si /refresh/
+  /// répond lui-même 401 (refresh token expiré/révoqué).
+  Future<Map<String, dynamic>> postJsonNoRefresh(
+    String path,
+    Map<String, dynamic> body,
+  ) =>
+      _send('POST', path, body: body, allowTokenRefresh: false);
 
   Future<Map<String, dynamic>> patchJson(String path, Map<String, dynamic> body) =>
       _send('PATCH', path, body: body);
@@ -54,6 +76,7 @@ class ApiClient {
     String method,
     String path, {
     Map<String, dynamic>? body,
+    bool allowTokenRefresh = true,
   }) async {
     final request = await _httpClient.openUrl(
       method,
@@ -79,6 +102,18 @@ class ApiClient {
     final raw = await utf8.decoder.bind(response).join();
     final dynamic decoded = raw.isEmpty ? <String, dynamic>{} : jsonDecode(raw);
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode == 401 &&
+          accessToken != null &&
+          allowTokenRefresh &&
+          onRefreshToken != null) {
+        final refreshed = await onRefreshToken!.call();
+        if (refreshed) {
+          return _send(method, path, body: body, allowTokenRefresh: false);
+        }
+      }
+      if (response.statusCode == 401 && accessToken != null) {
+        onUnauthorized?.call();
+      }
       final code = decoded is Map ? decoded['code'] as String? : null;
       throw ApiException(
         _extractErrorMessage(decoded),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'auth_screens.dart';
+import 'core/app_config.dart';
 import 'core/theme.dart';
 import 'courier_shell.dart';
 import 'detail_screens.dart';
@@ -10,6 +11,7 @@ class GabPharmaLivreurApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
+    navigatorKey: AppConfig.navigatorKey,
     debugShowCheckedModeBanner: false,
     title: "Gab'Pharma Livreur",
     theme: buildCourierTheme(),
