@@ -46,7 +46,7 @@ Aligné sur `api_contrat_besoins.md` §7 :
 2. [x] **Mot de passe oublié** — voir ci-dessus.
 3. [x] **Accueil, Courses disponibles, Détail course** — voir §3 ci-dessous.
 4. [x] **Course active et signalement d'incident** — voir §4 ci-dessous.
-5. [ ] Carte et navigation — bouton « ouvrir navigation externe » uniquement (pas de position temps réel, hors contrat).
+5. [ ] Carte et navigation — bouton « ouvrir navigation interne » uniquement (position temps réel, contrat effectif).
 6. [ ] Historique — corriger le mapping des filtres pour couvrir `returned`.
 7. [ ] Revenus et ledger — agrégats recalculés côté Flutter (Option A actée).
 8. [ ] Zones et disponibilité — remplacer les 4 zones inventées par les 4 zones réelles (Bikélé manquant).
