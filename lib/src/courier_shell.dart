@@ -1490,17 +1490,6 @@ class _HistoryEntryCard extends StatelessWidget {
 
 enum _EarningsPeriod { quotidien, hebdomadaire }
 
-typedef _LedgerEntry = ({
-  String code,
-  String pharmacy,
-  String time,
-  String amount,
-  bool cash,
-  String method,
-  String driverShare,
-  String platformShare,
-});
-
 class EarningsScreen extends StatefulWidget {
   const EarningsScreen({
     required this.online,
@@ -1514,52 +1503,76 @@ class EarningsScreen extends StatefulWidget {
   State<EarningsScreen> createState() => _EarningsScreenState();
 }
 
+/// Aucun agregat quotidien/hebdomadaire ni repartition especes/electronique
+/// n'existe cote API (Option A actee, voir `api_contrat_besoins.md` §3.3) :
+/// tout est recalcule ici depuis les ecritures brutes de
+/// `GET /mobile/courier/ledger/` (jusqu'a 50, non paginees).
+///
+/// Decouverte en branchant ce module : le ledger n'a pas de notion
+/// "especes/electronique" a proprement parler. `cod_commission` (positif)
+/// est la commission que le livreur doit reverser apres avoir deja encaisse
+/// une course payee en especes ; `electronic_earning`/`return_earning`
+/// (negatifs) sont les parts que Gab'Pharma doit au livreur. Plutot que de
+/// forcer un mapping especes/electronique qui n'existe pas cote backend, les
+/// deux tuiles ci-dessous regroupent honnetement les ecritures par signe
+/// (du a Gab'Pharma vs du par Gab'Pharma), coherent avec la convention deja
+/// utilisee pour le libelle du solde ("a reverser"/"a recevoir").
 class _EarningsScreenState extends State<EarningsScreen> {
+  final _api = CourierApi.fromSession();
   _EarningsPeriod _period = _EarningsPeriod.quotidien;
+  CourierLedger? _ledger;
+  bool _loading = true;
+  String? _error;
 
-  static const _entries = <_LedgerEntry>[
-    (
-      code: 'GP-9821',
-      pharmacy: 'Pharmacie du Centre',
-      time: '14:20',
-      amount: '+1 500 FCFA',
-      cash: true,
-      method: 'ESPÈCES',
-      driverShare: '900 FCFA',
-      platformShare: '600 FCFA',
-    ),
-    (
-      code: 'GP-9744',
-      pharmacy: "Grande Pharma d'Okala",
-      time: '11:05',
-      amount: '+2 200 FCFA',
-      cash: false,
-      method: 'AIRTEL MONEY',
-      driverShare: '1 320 FCFA',
-      platformShare: '880 FCFA',
-    ),
-    (
-      code: 'GP-9712',
-      pharmacy: "Pharmacie de l'Amitié",
-      time: 'Hier',
-      amount: '+1 800 FCFA',
-      cash: true,
-      method: 'ESPÈCES',
-      driverShare: '1 080 FCFA',
-      platformShare: '720 FCFA',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final ledger = await _api.fetchLedger();
+      if (!mounted) return;
+      setState(() {
+        _ledger = ledger;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
+
+  bool _inPeriod(DateTime date, _EarningsPeriod period) {
+    final now = DateTime.now();
+    final day = DateTime(date.year, date.month, date.day);
+    final today = DateTime(now.year, now.month, now.day);
+    if (period == _EarningsPeriod.quotidien) return day == today;
+    final monday = today.subtract(Duration(days: now.weekday - 1));
+    return !day.isBefore(monday) && !day.isAfter(today);
+  }
 
   void _showSplitInfo() {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Répartition 60/40'),
+        title: const Text('Mouvements du compte'),
         content: const Text(
-          'Pour chaque course livrée, vous conservez 60 % du montant perçu. '
-          'Les 40 % restants reviennent à Gab’Pharma et sont soit reversés '
-          'par vous (paiement en espèces), soit versés directement par la '
-          'plateforme (paiement électronique).',
+          'Chaque ligne reflète une écriture réelle de votre compte livreur. '
+          'Une commission « due à Gab’Pharma » apparaît quand vous avez déjà '
+          'encaissé une course payée en espèces (vous gardez 60 %, vous '
+          'devez reverser les 40 % restants). Un montant « dû par '
+          'Gab’Pharma » apparaît pour une course payée en ligne, ou après '
+          'une indemnité de retour patient — la plateforme vous doit alors '
+          'votre part de 60 %.',
         ),
         actions: [
           TextButton(
@@ -1585,9 +1598,18 @@ class _EarningsScreenState extends State<EarningsScreen> {
   @override
   Widget build(BuildContext context) {
     final isWeekly = _period == _EarningsPeriod.hebdomadaire;
-    final balance = isWeekly ? '68 200 FCFA' : '12 400 FCFA';
-    final cash = isWeekly ? '41 500 FCFA' : '8 500 FCFA';
-    final electronic = isWeekly ? '26 700 FCFA' : '3 900 FCFA';
+    final ledger = _ledger;
+    final entries = ledger?.entries ?? const <CourierLedgerEntry>[];
+    final periodEntries = entries
+        .where((e) => e.createdAt != null && _inPeriod(e.createdAt!, _period))
+        .toList();
+    final owedToPlatformFcfa = periodEntries
+        .where((e) => e.amountFcfa > 0)
+        .fold<int>(0, (sum, e) => sum + e.amountFcfa);
+    final owedByPlatformFcfa = periodEntries
+        .where((e) => e.amountFcfa < 0)
+        .fold<int>(0, (sum, e) => sum - e.amountFcfa);
+    final balanceFcfa = ledger?.balanceFcfa ?? 0;
 
     return Column(
       children: [
@@ -1597,135 +1619,158 @@ class _EarningsScreenState extends State<EarningsScreen> {
           onToggle: () => widget.onOnlineChanged(!widget.online),
         ),
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: GabColors.primary,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Solde actuel',
-                      style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      balance,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 30,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+              ? _HomeErrorState(message: _error!, onRetry: _load)
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: GabColors.primary,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Solde actuel',
+                              style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${formatFcfa(balanceFcfa.abs())} FCFA',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 30,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 16),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    balanceFcfa >= 0 ? 'À reverser à Gab’Pharma' : 'À recevoir de Gab’Pharma',
+                                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE2F1E9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _PeriodTab(
+                                label: 'Quotidien',
+                                selected: !isWeekly,
+                                onTap: () => setState(() => _period = _EarningsPeriod.quotidien),
+                              ),
+                            ),
+                            Expanded(
+                              child: _PeriodTab(
+                                label: 'Hebdomadaire',
+                                selected: isWeekly,
+                                onTap: () => setState(() => _period = _EarningsPeriod.hebdomadaire),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
+                      const SizedBox(height: 20),
+                      Row(
                         children: [
-                          Icon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 16),
-                          SizedBox(width: 8),
-                          Text('À reverser à Gab’Pharma', style: TextStyle(color: Colors.white, fontSize: 12)),
+                          Expanded(
+                            child: _EarningsBentoCard(
+                              icon: Icons.arrow_upward,
+                              iconColor: GabColors.warning,
+                              label: 'Dû à Gab’Pharma',
+                              value: '${formatFcfa(owedToPlatformFcfa)} FCFA',
+                              caption: 'Commissions espèces (40 %)',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _EarningsBentoCard(
+                              icon: Icons.arrow_downward,
+                              iconColor: GabColors.primary,
+                              label: 'Dû par Gab’Pharma',
+                              value: '${formatFcfa(owedByPlatformFcfa)} FCFA',
+                              caption: 'Part livreur due (60 %)',
+                            ),
+                          ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE2F1E9),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _PeriodTab(
-                        label: 'Quotidien',
-                        selected: !isWeekly,
-                        onTap: () => setState(() => _period = _EarningsPeriod.quotidien),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Mouvements du compte',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                          ),
+                          IconButton(
+                            onPressed: _showSplitInfo,
+                            icon: const Icon(Icons.info_outline, color: GabColors.muted),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
                       ),
-                    ),
-                    Expanded(
-                      child: _PeriodTab(
-                        label: 'Hebdomadaire',
-                        selected: isWeekly,
-                        onTap: () => setState(() => _period = _EarningsPeriod.hebdomadaire),
+                      const SizedBox(height: 4),
+                      if (entries.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 32),
+                          child: Center(
+                            child: Text(
+                              'Aucun mouvement pour le moment.',
+                              style: TextStyle(color: GabColors.muted),
+                            ),
+                          ),
+                        )
+                      else
+                        for (final entry in entries)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _LedgerEntryCard(entry: entry),
+                          ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _requestPayout,
+                          icon: const Icon(Icons.account_balance_outlined),
+                          label: const Text('Demander un virement'),
+                          style: FilledButton.styleFrom(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: _EarningsBentoCard(
-                      icon: Icons.payments_outlined,
-                      iconColor: GabColors.primary,
-                      label: 'Espèces',
-                      value: cash,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _EarningsBentoCard(
-                      icon: Icons.contactless_outlined,
-                      iconColor: GabColors.routeBlue,
-                      label: 'Électronique',
-                      value: electronic,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Détails des gains (60/40)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
-                  IconButton(
-                    onPressed: _showSplitInfo,
-                    icon: const Icon(Icons.info_outline, color: GabColors.muted),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              for (final entry in _entries)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _LedgerEntryCard(entry: entry),
-                ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _requestPayout,
-                  icon: const Icon(Icons.account_balance_outlined),
-                  label: const Text('Demander un virement'),
-                  style: FilledButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
         ),
       ],
     );
@@ -1766,11 +1811,13 @@ class _EarningsBentoCard extends StatelessWidget {
     required this.iconColor,
     required this.label,
     required this.value,
+    required this.caption,
   });
   final IconData icon;
   final Color iconColor;
   final String label;
   final String value;
+  final String caption;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1787,7 +1834,13 @@ class _EarningsBentoCard extends StatelessWidget {
           children: [
             Icon(icon, color: iconColor, size: 20),
             const SizedBox(width: 8),
-            Text(label, style: const TextStyle(color: GabColors.muted, fontSize: 12)),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(color: GabColors.muted, fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 10),
@@ -1795,109 +1848,113 @@ class _EarningsBentoCard extends StatelessWidget {
           value,
           style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
         ),
+        const SizedBox(height: 2),
+        Text(
+          caption,
+          style: const TextStyle(color: GabColors.muted, fontSize: 10),
+        ),
       ],
     ),
   );
 }
 
+/// Carte de mouvement de compte, derivee uniquement de ce que renvoie
+/// `GET /mobile/courier/ledger/` — pas de pharmacie ni de code de course
+/// (`GP-xxxx`) ici, contrairement a l'Historique, car l'endpoint ledger ne
+/// les expose pas (voir doc du fichier `courier_api.dart`).
 class _LedgerEntryCard extends StatelessWidget {
   const _LedgerEntryCard({required this.entry});
-  final _LedgerEntry entry;
+  final CourierLedgerEntry entry;
+
+  static const _typeBadgeLabels = {
+    'cod_commission': 'ESPÈCES',
+    'electronic_earning': 'ÉLECTRONIQUE',
+    'return_earning': 'RETOUR PATIENT',
+    'courier_settlement': 'RÈGLEMENT',
+    'platform_payout': 'VERSEMENT',
+    'adjustment': 'AJUSTEMENT',
+  };
+
+  static const _typeBadgeColors = {
+    'cod_commission': GabColors.warning,
+    'electronic_earning': GabColors.routeBlue,
+    'return_earning': GabColors.routeBlue,
+    'courier_settlement': GabColors.warning,
+    'platform_payout': GabColors.primary,
+    'adjustment': GabColors.muted,
+  };
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.3)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Course #${entry.code}', style: const TextStyle(fontWeight: FontWeight.w800)),
+  Widget build(BuildContext context) {
+    final isCredit = entry.amountFcfa < 0;
+    final badgeLabel = _typeBadgeLabels[entry.entryType] ?? entry.entryTypeLabel.toUpperCase();
+    final badgeColor = _typeBadgeColors[entry.entryType] ?? GabColors.muted;
+    final date = entry.createdAt;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(entry.entryTypeLabel, style: const TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(
+                  entry.reason.isNotEmpty ? entry.reason : 'Réf. ${entry.reference}',
+                  style: const TextStyle(color: GabColors.muted, fontSize: 12),
+                ),
+                if (date != null) ...[
                   const SizedBox(height: 2),
                   Text(
-                    '${entry.pharmacy} • ${entry.time}',
-                    style: const TextStyle(color: GabColors.muted, fontSize: 12),
+                    '${_historyDateLabel(date)} à ${_historyTimeLabel(date)}',
+                    style: const TextStyle(color: GabColors.muted, fontSize: 11),
                   ),
                 ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  entry.amount,
-                  style: const TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800, fontSize: 16),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: entry.cash
-                        ? const Color(0xFFA8F4B9).withValues(alpha: 0.6)
-                        : GabColors.routeBlue.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    entry.method,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.3,
-                      color: entry.cash ? GabColors.secondary : GabColors.routeBlue,
-                    ),
-                  ),
-                ),
               ],
             ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        const Divider(height: 1),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'VOTRE PART (60%)',
-                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: GabColors.muted, letterSpacing: 0.3),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(entry.driverShare, style: const TextStyle(color: GabColors.primary, fontWeight: FontWeight.w700)),
-                ],
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${isCredit ? '+' : '−'}${formatFcfa(entry.amountFcfa.abs())} FCFA',
+                style: TextStyle(
+                  color: isCredit ? GabColors.primary : GabColors.danger,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
               ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Text(
-                    'PLATEFORME (40%)',
-                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: GabColors.muted, letterSpacing: 0.3),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  badgeLabel,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                    color: badgeColor,
                   ),
-                  const SizedBox(height: 2),
-                  Text(entry.platformShare, style: const TextStyle(fontWeight: FontWeight.w700)),
-                ],
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class CourierProfile extends StatelessWidget {

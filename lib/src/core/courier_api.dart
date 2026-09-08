@@ -182,6 +182,64 @@ class CourierDelivery {
   }
 }
 
+/// Ecriture du ledger livreur (`CourierLedgerEntry` cote Django) : le signe
+/// de `amountFcfa` suit la convention backend — positif = du a Gab'Pharma
+/// (le livreur a deja encaisse en especes et doit reverser la commission),
+/// negatif = du par Gab'Pharma (paiement electronique ou indemnite de
+/// retour, a verser au livreur). Aucune donnee pharmacie/code de course
+/// n'est exposee par cet endpoint (contrairement a `CourierDelivery`) : seul
+/// `reason` (texte libre cote backend) mentionne la livraison concernee.
+class CourierLedgerEntry {
+  const CourierLedgerEntry({
+    required this.id,
+    required this.entryType,
+    required this.entryTypeLabel,
+    required this.amountFcfa,
+    required this.reference,
+    required this.reason,
+    this.deliveryId,
+    this.createdAt,
+  });
+
+  final int id;
+  final String entryType;
+  final String entryTypeLabel;
+  final int amountFcfa;
+  final String reference;
+  final String reason;
+  final int? deliveryId;
+  final DateTime? createdAt;
+
+  factory CourierLedgerEntry.fromJson(Map<String, dynamic> json) => CourierLedgerEntry(
+    id: json['id'] as int,
+    entryType: json['entry_type'] as String? ?? '',
+    entryTypeLabel: json['entry_type_label'] as String? ?? '',
+    amountFcfa: json['amount_fcfa'] as int? ?? 0,
+    reference: json['reference'] as String? ?? '',
+    reason: json['reason'] as String? ?? '',
+    deliveryId: json['delivery_id'] as int?,
+    createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null,
+  );
+}
+
+/// Solde courant + jusqu'a 50 dernieres ecritures (`GET
+/// /mobile/courier/ledger/`, non pagine cote backend). Aucun agregat par
+/// periode ni repartition especes/electronique n'existe cote API — recalcul
+/// entierement cote Flutter (decision produit "Option A", voir
+/// `api_contrat_besoins.md` §3.3).
+class CourierLedger {
+  const CourierLedger({required this.balanceFcfa, required this.entries});
+  final int balanceFcfa;
+  final List<CourierLedgerEntry> entries;
+
+  factory CourierLedger.fromJson(Map<String, dynamic> json) => CourierLedger(
+    balanceFcfa: json['balance_fcfa'] as int? ?? 0,
+    entries: ((json['entries'] as List?) ?? [])
+        .map((e) => CourierLedgerEntry.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
+}
+
 class PatientAbsenceResult {
   const PatientAbsenceResult({required this.delivery, required this.incident});
   final CourierDelivery delivery;
@@ -262,6 +320,11 @@ class CourierApi {
       'is_available_for_delivery': value,
     });
     return CourierAvailability.fromJson(json);
+  }
+
+  Future<CourierLedger> fetchLedger() async {
+    final json = await _client.getJson('/mobile/courier/ledger/');
+    return CourierLedger.fromJson(json);
   }
 
   /// Historique complet du livreur (`delivered`/`returned`/`cancelled`),
