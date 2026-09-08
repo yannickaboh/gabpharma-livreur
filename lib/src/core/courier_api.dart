@@ -170,21 +170,27 @@ class PatientAbsenceResult {
 class CourierAvailability {
   const CourierAvailability({
     required this.isAvailableForDelivery,
+    required this.coverageZoneCodes,
     required this.coverageZoneLabels,
     required this.vehicleTypeLabel,
   });
 
   final bool isAvailableForDelivery;
+  final List<String> coverageZoneCodes;
   final List<String> coverageZoneLabels;
   final String vehicleTypeLabel;
 
-  factory CourierAvailability.fromJson(Map<String, dynamic> json) => CourierAvailability(
-    isAvailableForDelivery: json['is_available_for_delivery'] as bool? ?? false,
-    coverageZoneLabels: ((json['coverage_zones'] as List?) ?? [])
-        .map((z) => (z as Map<String, dynamic>)['label'] as String? ?? '')
-        .toList(),
-    vehicleTypeLabel: json['vehicle_type_label'] as String? ?? '',
-  );
+  factory CourierAvailability.fromJson(Map<String, dynamic> json) {
+    final zones = ((json['coverage_zones'] as List?) ?? [])
+        .map((z) => z as Map<String, dynamic>)
+        .toList();
+    return CourierAvailability(
+      isAvailableForDelivery: json['is_available_for_delivery'] as bool? ?? false,
+      coverageZoneCodes: zones.map((z) => z['code'] as String? ?? '').toList(),
+      coverageZoneLabels: zones.map((z) => z['label'] as String? ?? '').toList(),
+      vehicleTypeLabel: json['vehicle_type_label'] as String? ?? '',
+    );
+  }
 }
 
 class CourierSummary {
@@ -223,6 +229,11 @@ class CourierApi {
   Future<CourierSummary> fetchSummary() async {
     final json = await _client.getJson('/mobile/courier/summary/');
     return CourierSummary.fromJson(json);
+  }
+
+  Future<CourierAvailability> fetchAvailability() async {
+    final json = await _client.getJson('/mobile/courier/availability/');
+    return CourierAvailability.fromJson(json);
   }
 
   Future<CourierAvailability> setAvailable(bool value) async {

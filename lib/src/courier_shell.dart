@@ -51,11 +51,19 @@ class _CourierShellState extends State<CourierShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      CourierHome(online: online, onOnlineChanged: _setOnline),
+      CourierHome(
+        online: online,
+        onOnlineChanged: _setOnline,
+        onRefreshAvailability: _loadAvailability,
+      ),
       AvailableDeliveries(online: online, onOnlineChanged: _setOnline),
       DeliveryHistory(online: online, onOnlineChanged: _setOnline),
       EarningsScreen(online: online, onOnlineChanged: _setOnline),
-      CourierProfile(online: online, onOnlineChanged: _setOnline),
+      CourierProfile(
+        online: online,
+        onOnlineChanged: _setOnline,
+        onRefreshAvailability: _loadAvailability,
+      ),
     ];
     return Scaffold(
       body: Column(
@@ -107,10 +115,12 @@ class CourierHome extends StatefulWidget {
   const CourierHome({
     required this.online,
     required this.onOnlineChanged,
+    required this.onRefreshAvailability,
     super.key,
   });
   final bool online;
   final ValueChanged<bool> onOnlineChanged;
+  final Future<void> Function() onRefreshAvailability;
 
   @override
   State<CourierHome> createState() => _CourierHomeState();
@@ -351,7 +361,10 @@ class _CourierHomeState extends State<CourierHome> {
                       ),
                       const SizedBox(height: 12),
                       InkWell(
-                        onTap: () => Navigator.pushNamed(context, '/availability'),
+                        onTap: () async {
+                          await Navigator.pushNamed(context, '/availability');
+                          widget.onRefreshAvailability();
+                        },
                         borderRadius: BorderRadius.circular(16),
                         child: Container(
                           height: 150,
@@ -1830,10 +1843,12 @@ class CourierProfile extends StatelessWidget {
   const CourierProfile({
     required this.online,
     required this.onOnlineChanged,
+    required this.onRefreshAvailability,
     super.key,
   });
   final bool online;
   final ValueChanged<bool> onOnlineChanged;
+  final Future<void> Function() onRefreshAvailability;
 
   void _showInfoDialog(BuildContext context, String title, String message) {
     showDialog<void>(
@@ -1942,7 +1957,10 @@ class CourierProfile extends StatelessWidget {
                   _ProfileRow(
                     icon: Icons.map_outlined,
                     label: 'Zones et disponibilité',
-                    onTap: () => Navigator.pushNamed(context, '/availability'),
+                    onTap: () async {
+                      await Navigator.pushNamed(context, '/availability');
+                      onRefreshAvailability();
+                    },
                   ),
                   _ProfileRow(
                     icon: Icons.badge_outlined,

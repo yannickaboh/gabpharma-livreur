@@ -2435,7 +2435,7 @@ class _MockMapPainter extends CustomPainter {
   bool shouldRepaint(covariant _MockMapPainter oldDelegate) => false;
 }
 
-typedef _Zone = ({String name, String subtitle});
+typedef _Zone = ({String code, String label});
 
 class AvailabilityScreen extends StatefulWidget {
   const AvailabilityScreen({super.key});
@@ -2444,24 +2444,93 @@ class AvailabilityScreen extends StatefulWidget {
 }
 
 class _AvailabilityScreenState extends State<AvailabilityScreen> {
+  // Les 4 zones réelles du backend (`ZONE_CHOICES`, `apps/accounts/forms.py`)
+  // — aucune autre zone n'existe côté API, et aucune n'a de métadonnée
+  // "demande"/nombre de pharmacies à afficher honnêtement.
   static const _zones = <_Zone>[
-    (name: 'Libreville Centre', subtitle: 'Forte demande • 45 pharmacies'),
-    (name: 'Akanda', subtitle: 'Demande moyenne • 12 pharmacies'),
-    (name: 'Owendo', subtitle: 'Secteur Portuaire • 8 pharmacies'),
-    (name: 'SNI / Angondjé', subtitle: 'Zone Résidentielle • 15 pharmacies'),
+    (code: 'libreville', label: 'Libreville'),
+    (code: 'owendo', label: 'Owendo'),
+    (code: 'akanda', label: 'Akanda'),
+    (code: 'bikele', label: 'Bikélé'),
   ];
 
-  bool _online = true;
-  final Set<String> _selectedZones = {'Libreville Centre'};
-  final String _activeZone = 'Libreville Centre';
+  final _api = CourierApi.fromSession();
+  bool _loading = true;
+  String? _error;
+  bool _online = false;
+  bool _togglingOnline = false;
+  // Zones réellement affectées côté backend (`coverage_zones`) — c'est ce
+  // qui détermine le badge "vérifié" et le pill "Zone(s) active(s)".
+  Set<String> _realZones = {};
+  // Intention du livreur, éditable localement : ne modifie jamais
+  // `_realZones` tant qu'aucun endpoint ne permet de sauvegarder un
+  // changement de zone (`PATCH /mobile/courier/availability/` ne touche
+  // que `is_available_for_delivery`, jamais `coverage_zones` — voir
+  // `api_contrat_besoins.md` §13).
+  final Set<String> _selectedZones = {};
   bool _updating = false;
 
-  void _toggleZone(String name, bool checked) {
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final availability = await _api.fetchAvailability();
+      if (!mounted) return;
+      setState(() {
+        _online = availability.isAvailableForDelivery;
+        _realZones = availability.coverageZoneCodes.toSet();
+        _selectedZones
+          ..clear()
+          ..addAll(_realZones);
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _setOnline(bool value) async {
+    if (_togglingOnline) return;
+    final previous = _online;
+    setState(() {
+      _online = value;
+      _togglingOnline = true;
+    });
+    try {
+      final availability = await _api.setAvailable(value);
+      if (!mounted) return;
+      setState(() {
+        _online = availability.isAvailableForDelivery;
+        _togglingOnline = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _online = previous;
+        _togglingOnline = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  void _toggleZone(String code, bool checked) {
     setState(() {
       if (checked) {
-        _selectedZones.add(name);
+        _selectedZones.add(code);
       } else if (_selectedZones.length > 1) {
-        _selectedZones.remove(name);
+        _selectedZones.remove(code);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Vous devez couvrir au moins une zone.')),
@@ -2472,7 +2541,9 @@ class _AvailabilityScreenState extends State<AvailabilityScreen> {
 
   Future<void> _updateZone() async {
     if (_updating) return;
-    if (_selectedZones.length == 1 && _selectedZones.single == _activeZone) {
+    final unchanged =
+        _selectedZones.length == _realZones.length && _selectedZones.containsAll(_realZones);
+    if (unchanged) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Aucun changement de zone à valider.')),
       );
@@ -2498,6 +2569,15 @@ class _AvailabilityScreenState extends State<AvailabilityScreen> {
         content: Text('Carte simplifiée à titre illustratif : zoom indisponible en démonstration.'),
       ),
     );
+  }
+
+  String get _activeZonesLabel {
+    final labels = _zones
+        .where((zone) => _realZones.contains(zone.code))
+        .map((zone) => zone.label)
+        .toList();
+    if (labels.isEmpty) return 'Aucune zone assignée';
+    return labels.join(', ');
   }
 
   @override
@@ -2558,7 +2638,33 @@ class _AvailabilityScreenState extends State<AvailabilityScreen> {
       ],
     ),
     body: SafeArea(
-      child: ListView(
+      child: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.info_outline, size: 40, color: GabColors.muted),
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: GabColors.muted),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _load,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Réessayer'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
           Container(
@@ -2593,7 +2699,7 @@ class _AvailabilityScreenState extends State<AvailabilityScreen> {
                       value: _online,
                       activeThumbColor: Colors.white,
                       activeTrackColor: GabColors.primary,
-                      onChanged: (value) => setState(() => _online = value),
+                      onChanged: _togglingOnline ? null : _setOnline,
                     ),
                   ],
                 ),
@@ -2647,9 +2753,9 @@ class _AvailabilityScreenState extends State<AvailabilityScreen> {
               padding: const EdgeInsets.only(bottom: 12),
               child: _ZoneTile(
                 zone: zone,
-                checked: _selectedZones.contains(zone.name),
-                active: zone.name == _activeZone,
-                onChanged: (value) => _toggleZone(zone.name, value),
+                checked: _selectedZones.contains(zone.code),
+                active: _realZones.contains(zone.code),
+                onChanged: (value) => _toggleZone(zone.code, value),
               ),
             ),
           const SizedBox(height: 8),
@@ -2697,12 +2803,15 @@ class _AvailabilityScreenState extends State<AvailabilityScreen> {
                         children: [
                           const Icon(Icons.location_on, color: Colors.white, size: 16),
                           const SizedBox(width: 8),
-                          Text(
-                            'Zone active : $_activeZone',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
+                          Flexible(
+                            child: Text(
+                              'Zone(s) active(s) : $_activeZonesLabel',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ],
@@ -2811,8 +2920,12 @@ class _ZoneTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(zone.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                  Text(zone.subtitle, style: const TextStyle(color: GabColors.muted, fontSize: 12)),
+                  Text(zone.label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                  if (active)
+                    const Text(
+                      'Zone assignée',
+                      style: TextStyle(color: GabColors.primary, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
                 ],
               ),
             ),
@@ -2895,10 +3008,10 @@ class _ZoneMapPainter extends CustomPainter {
       painter.paint(canvas, offset + const Offset(9, -6));
     }
 
-    marker(Offset(size.width * 0.42, size.height * 0.3), 'Libreville Centre');
+    marker(Offset(size.width * 0.42, size.height * 0.3), 'Libreville');
     marker(Offset(size.width * 0.78, size.height * 0.22), 'Akanda');
     marker(Offset(size.width * 0.7, size.height * 0.75), 'Owendo');
-    marker(Offset(size.width * 0.9, size.height * 0.6), 'SNI/Angondjé');
+    marker(Offset(size.width * 0.9, size.height * 0.6), 'Bikélé');
   }
 
   @override

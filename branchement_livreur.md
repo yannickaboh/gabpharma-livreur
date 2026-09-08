@@ -49,7 +49,7 @@ Aligné sur `api_contrat_besoins.md` §7 :
 5. [ ] Carte et navigation — bouton « ouvrir navigation interne » uniquement (position temps réel, contrat effectif).
 6. [ ] Historique — corriger le mapping des filtres pour couvrir `returned`.
 7. [ ] Revenus et ledger — agrégats recalculés côté Flutter (Option A actée).
-8. [ ] Zones et disponibilité — remplacer les 4 zones inventées par les 4 zones réelles (Bikélé manquant).
+8. [x] **Zones et disponibilité** — voir §7 ci-dessous.
 9. [ ] Documents — backend prêt depuis le 28 août 2026 (voir `api_contrat_besoins.md` §3.1), retirer le document « Assurance » de l'écran au branchement.
 10. [ ] Notifications — retirer "Document validé"/"Versement reçu" (aucune source backend).
 11. [ ] Centre d'aide, tickets, conversation support.
@@ -121,6 +121,20 @@ Point transverse repéré au module 4 (voir ci-dessus), traité en priorité ava
 - Attendu au-delà des 20 secondes de test, puis navigué entre les onglets Courses/Historique : chargement normal des données réelles, aucune erreur affichée.
 - Preuve directe la plus solide : jeton d'accès stocké volontairement laissé périmé plusieurs minutes, puis l'app relancée à froid (`force-stop` + `am start`, donc `restoreSession()` rejoué depuis zéro avec ce jeton expiré). L'app est revenue directement sur l'Accueil avec les vraies données (au lieu de l'écran de connexion), et le contenu chiffré de `FlutterSecureStorage.xml` (lu via `adb shell run-as ... cat`, appareil de debug) a changé aussi bien pour `access_token` que pour `refresh_token` entre avant et après le relancement — preuve qu'un rafraîchissement silencieux a bien eu lieu plutôt qu'une coïncidence d'horloge.
 - Chemin d'échec (rafraîchissement lui-même en échec → déconnexion propre vers `/login`) revérifié par lecture de code uniquement (mécanisme identique à celui déjà vérifié en conditions réelles côté Patient), pas re-testé en direct ici pour limiter le nombre de cycles de build (~13 min chacun sur cette machine).
+
+## 7. Zones et disponibilité (8 septembre 2026)
+
+Écran 13 (`AvailabilityScreen`, route `/availability`) branché sur `GET`/`PATCH /mobile/courier/availability/`. Aligné sur le constat déjà posé dans `api_contrat_besoins.md` §13 : le `PATCH` ne modifie que `is_available_for_delivery`, jamais `coverage_zones` — aucun endpoint mobile ne permet à un livreur de changer lui-même ses zones assignées.
+
+- `CourierAvailability` (`courier_api.dart`) gagne `coverageZoneCodes` (en plus des labels déjà utilisés par l'Accueil) ; `CourierApi.fetchAvailability()` ajouté (`GET`, jusqu'ici seul `setAvailable` — `PATCH` — existait).
+- **4 zones inventées remplacées par les 4 zones réelles** (`libreville`/Libreville, `owendo`/Owendo, `akanda`/Akanda, `bikele`/Bikélé, `ZONE_CHOICES` côté Django) — Bikélé, absent de l'écran depuis le début, est désormais présent. Fausses métadonnées par zone ("Forte demande • 45 pharmacies", etc., aucune source backend) retirées ; remplacées par un badge honnête "Zone assignée" + icône vérifiée uniquement sur les zones réellement présentes dans `coverage_zones`.
+- **Distinction actée entre "zones cochées" (intention éditable, jamais envoyée) et "zones réelles" (`coverage_zones`, pilote le badge vérifié et le pill de la carte)** — les cases à cocher restent multi-sélection libre côté Flutter, mais ne modifient jamais la vérité serveur, conformément au bouton honnête déjà existant "Mettre à jour ma zone" (simulation locale, jamais de vraie requête de changement de zone puisqu'aucun endpoint n'existe).
+- Toggle "Statut Actuel" (En ligne/Hors ligne) branché sur le vrai `PATCH` (déjà utilisé par `CourierShell` pour les 5 onglets) — mise à jour optimiste avec correction sur erreur, identique au pattern déjà en place ailleurs dans l'app.
+- **Synchronisation avec le header partagé** : `AvailabilityScreen` est un écran poussé (pas un onglet), donc son propre fetch/toggle est indépendant de l'état `online` déjà chargé par `CourierShell`. Pour éviter un désync visuel après un retour en arrière (toggler dans Zones puis revenir sur Accueil/Profil), les deux points d'entrée (carte "Zone Actuelle" de l'Accueil, ligne "Zones et disponibilité" du Profil) attendent désormais le retour de `Navigator.pushNamed` avant de rappeler `_loadAvailability()`.
+- Libellés de la carte illustrative (`_ZoneMapPainter`) corrigés en cohérence ("Libreville Centre" → "Libreville", "SNI/Angondjé" → "Bikélé").
+- `flutter analyze` propre sur les 3 fichiers modifiés (un aller-retour : `setEquals` du package `foundation` non résolu par l'analyseur dans ce fichier, remplacé par une comparaison d'ensembles manuelle).
+
+**Vérifié de bout en bout sur S8 physique le 8 septembre 2026** (compte `livreur@gabpharma.ga`, identité "Carine Mba", zones réelles `['libreville', 'akanda']`) : Libreville et Akanda affichées cochées avec badge "Zone assignée" + icône vérifiée, Owendo et Bikélé décochées sans badge ; pill de la carte "Zone(s) active(s) : Libreville, Akanda" correct. Cocher Owendo en plus n'affiche aucun badge sur cette zone (comportement honnête confirmé) ; "Mettre à jour ma zone" sans changement affiche "Aucun changement de zone à valider.", avec un changement affiche la vraie simulation ("Demande envoyée au support logistique..."), et dans les deux cas la base Django (`ProfessionalApplication.coverage_zones`) reste inchangée (`['libreville', 'akanda']`, vérifié en base) — rien n'est jamais persisté côté zones, comme attendu. Toggle En ligne/Hors ligne confirmé en base (`is_available_for_delivery` passé à `False` puis revérifié) ; retour sur les onglets Accueil et Profil confirmé synchronisé (badge "HORS LIGNE" repris des deux côtés après le retour). Aucun overflow constaté.
 
 ## Rappel d'environnement pour reprendre cette session de branchement
 
