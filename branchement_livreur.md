@@ -47,7 +47,7 @@ Aligné sur `api_contrat_besoins.md` §7 :
 3. [x] **Accueil, Courses disponibles, Détail course** — voir §3 ci-dessous.
 4. [x] **Course active et signalement d'incident** — voir §4 ci-dessous.
 5. [ ] Carte et navigation — bouton « ouvrir navigation interne » uniquement (position temps réel, contrat effectif).
-6. [ ] Historique — corriger le mapping des filtres pour couvrir `returned`.
+6. [x] **Historique** — voir §8 ci-dessous.
 7. [ ] Revenus et ledger — agrégats recalculés côté Flutter (Option A actée).
 8. [x] **Zones et disponibilité** — voir §7 ci-dessous.
 9. [ ] Documents — backend prêt depuis le 28 août 2026 (voir `api_contrat_besoins.md` §3.1), retirer le document « Assurance » de l'écran au branchement.
@@ -135,6 +135,19 @@ Point transverse repéré au module 4 (voir ci-dessus), traité en priorité ava
 - `flutter analyze` propre sur les 3 fichiers modifiés (un aller-retour : `setEquals` du package `foundation` non résolu par l'analyseur dans ce fichier, remplacé par une comparaison d'ensembles manuelle).
 
 **Vérifié de bout en bout sur S8 physique le 8 septembre 2026** (compte `livreur@gabpharma.ga`, identité "Carine Mba", zones réelles `['libreville', 'akanda']`) : Libreville et Akanda affichées cochées avec badge "Zone assignée" + icône vérifiée, Owendo et Bikélé décochées sans badge ; pill de la carte "Zone(s) active(s) : Libreville, Akanda" correct. Cocher Owendo en plus n'affiche aucun badge sur cette zone (comportement honnête confirmé) ; "Mettre à jour ma zone" sans changement affiche "Aucun changement de zone à valider.", avec un changement affiche la vraie simulation ("Demande envoyée au support logistique..."), et dans les deux cas la base Django (`ProfessionalApplication.coverage_zones`) reste inchangée (`['libreville', 'akanda']`, vérifié en base) — rien n'est jamais persisté côté zones, comme attendu. Toggle En ligne/Hors ligne confirmé en base (`is_available_for_delivery` passé à `False` puis revérifié) ; retour sur les onglets Accueil et Profil confirmé synchronisé (badge "HORS LIGNE" repris des deux côtés après le retour). Aucun overflow constaté.
+
+## 8. Historique (8 septembre 2026)
+
+Écran 11 (`DeliveryHistory`, onglet Historique) — n'était pas branché du tout jusqu'ici (données 100 % locales codées en dur), au-delà du seul écart de mapping des filtres déjà noté dans `api_contrat_besoins.md` §11. Branché sur `GET /mobile/courier/deliveries/history/` (`delivered`/`returned`/`cancelled`, paginé 20/page).
+
+- `CourierApi.fetchDeliveryHistory()` ajouté : accumule toutes les pages (un livreur n'a réalistement qu'un historique de quelques dizaines/centaines de courses, pas de "Charger plus" nécessaire). `CourierDelivery` gagne `orderReference`, `orderCreatedAt`, `deliveredAt`, `returnedAt`, et un getter `historyDate` (remise, sinon retour, sinon création de commande — le backend n'expose aucune date de clôture pour `cancelled`).
+- **Filtres remplacés : Tout/Livré/Annulé (3 valeurs) → Tout/Livré/Retourné/Annulé (4 valeurs)** — c'était le cœur du problème signalé : une course `returned` (retour à la pharmacie après absence patient) n'avait jusqu'ici aucune case pour l'afficher.
+- Badge de statut : couleur/icône par statut réel (vert `task_alt` livré, ambre `assignment_return` retourné, rouge `cancel` annulé) au lieu d'un simple booléen succès/échec. Libellé du badge raccourci ("RETOUR" plutôt que le `status_label` complet "Retournée à la pharmacie", trop long pour tenir sur une ligne avec l'heure — le libellé complet reste dans le dialogue de détail).
+- Stats "Total Courses"/"Ce Mois" recalculées côté Flutter depuis l'historique complet (compteur réel/compteur du mois civil courant, plus de valeurs inventées). "Revenus Totaux" = somme de `courier_share_fcfa` sur les courses **livrées uniquement** — pas la même chose que le solde du ledger (onglet Revenus, pas encore branché, item 7 de l'ordre convenu), volontairement distinct.
+- Regroupement par date réel (`Aujourd'hui`/`Hier`/`DD mois AAAA`) au lieu de dates codées en dur ; libellé du pill "mois" (toujours honnête, snackbar "indisponible") rendu dynamique sur le mois courant plutôt que figé sur "Juin 2026".
+- `flutter analyze` propre.
+
+**Vérifié de bout en bout sur S8 physique le 8 septembre 2026.** Aucune course `returned` n'existait en base pour tester le cas réel visé par ce module — une créée via les vrais services Django (`assign_delivery` → `pick_up_delivery` → `report_patient_absence` → `confirm_return_to_pharmacy`, même parcours que celui déjà vérifié au module 4) sur le compte `livreur-pharmacie-du-centre@example.ga` ("Serge Ekomy", mot de passe de test `TestHisto2026` — à documenter comme les autres identifiants de démo si réutilisé). Résultat : historique affichant 3 courses réelles (2 livrées + 1 retournée), "Total Courses" = 3, "Ce Mois" = 2, "Revenus Totaux" = 1 200 FCFA (= 300 + 900 FCFA des deux livrées, retour exclu) — recoupé manuellement, correct. Filtre "Retourné" isole bien la seule course retournée (carte ambre "RETOUR", 15:19, groupée sous "Aujourd'hui") ; filtre "Livré" isole bien les deux autres (groupées sous "Hier" et "5 juillet 2026", total 1 200 FCFA cohérent avec le bento). Aucun overflow constaté malgré des noms de pharmacie longs ("Pharmacie du Centre" tronqué proprement en ellipse).
 
 ## Rappel d'environnement pour reprendre cette session de branchement
 

@@ -117,6 +117,10 @@ class CourierDelivery {
     this.deliveryAddress,
     this.deliveryDeadline,
     this.isLate = false,
+    this.orderReference,
+    this.orderCreatedAt,
+    this.deliveredAt,
+    this.returnedAt,
   });
 
   final int id;
@@ -134,11 +138,24 @@ class CourierDelivery {
   final String? deliveryAddress;
   final DateTime? deliveryDeadline;
   final bool isLate;
+  final String? orderReference;
+  final DateTime? orderCreatedAt;
+  final DateTime? deliveredAt;
+  final DateTime? returnedAt;
+
+  /// Meilleure date disponible pour une course clôturée : la remise, sinon
+  /// le retour à la pharmacie, sinon la création de la commande (le backend
+  /// n'expose pas de date de clôture pour `cancelled`, aucune donnée mieux
+  /// datée n'existe pour ce cas).
+  DateTime? get historyDate => deliveredAt ?? returnedAt ?? orderCreatedAt;
 
   factory CourierDelivery.fromJson(Map<String, dynamic> json) {
     final order = json['order'] as Map<String, dynamic>?;
     final patient = order?['patient'] as Map<String, dynamic>?;
     final deadline = json['delivery_deadline'] as String?;
+    final orderCreatedAt = order?['created_at'] as String?;
+    final deliveredAt = json['delivered_at'] as String?;
+    final returnedAt = json['returned_at'] as String?;
     return CourierDelivery(
       id: json['id'] as int,
       status: json['status'] as String? ?? '',
@@ -157,6 +174,10 @@ class CourierDelivery {
       deliveryAddress: order?['delivery_address'] as String?,
       deliveryDeadline: deadline != null ? DateTime.tryParse(deadline) : null,
       isLate: json['is_late'] as bool? ?? false,
+      orderReference: order?['reference'] as String?,
+      orderCreatedAt: orderCreatedAt != null ? DateTime.tryParse(orderCreatedAt) : null,
+      deliveredAt: deliveredAt != null ? DateTime.tryParse(deliveredAt) : null,
+      returnedAt: returnedAt != null ? DateTime.tryParse(returnedAt) : null,
     );
   }
 }
@@ -241,6 +262,26 @@ class CourierApi {
       'is_available_for_delivery': value,
     });
     return CourierAvailability.fromJson(json);
+  }
+
+  /// Historique complet du livreur (`delivered`/`returned`/`cancelled`),
+  /// paginé côté serveur (20/page) — accumule toutes les pages : un livreur
+  /// n'a réalistement qu'un historique de quelques dizaines/centaines de
+  /// courses, pas des milliers, donc le tout tient sans "Charger plus".
+  Future<List<CourierDelivery>> fetchDeliveryHistory() async {
+    final all = <CourierDelivery>[];
+    String path = '/mobile/courier/deliveries/history/';
+    while (true) {
+      final json = await _client.getJson(path);
+      final results = (json['results'] as List?) ?? [];
+      all.addAll(results.map((e) => CourierDelivery.fromJson(e as Map<String, dynamic>)));
+      final next = json['next'] as String?;
+      if (next == null) break;
+      final page = Uri.parse(next).queryParameters['page'];
+      if (page == null) break;
+      path = '/mobile/courier/deliveries/history/?page=$page';
+    }
+    return all;
   }
 
   Future<List<CourierDelivery>> fetchAvailableDeliveries() async {

@@ -111,6 +111,24 @@ String formatFcfa(int value) {
   return buffer.toString();
 }
 
+const _frenchMonths = [
+  'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+];
+
+String _historyDateLabel(DateTime date) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(date.year, date.month, date.day);
+  final diff = today.difference(day).inDays;
+  if (diff == 0) return "Aujourd'hui";
+  if (diff == 1) return 'Hier';
+  return '${date.day} ${_frenchMonths[date.month - 1]} ${date.year}';
+}
+
+String _historyTimeLabel(DateTime date) =>
+    '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
 class CourierHome extends StatefulWidget {
   const CourierHome({
     required this.online,
@@ -1037,15 +1055,7 @@ class _EmptyCoursesState extends StatelessWidget {
   );
 }
 
-enum _HistoryFilter { tout, livre, annule }
-
-typedef _HistoryEntry = ({
-  String date,
-  String pharmacy,
-  String amount,
-  String time,
-  bool success,
-});
+enum _HistoryFilter { tout, livre, retourne, annule }
 
 class DeliveryHistory extends StatefulWidget {
   const DeliveryHistory({
@@ -1061,47 +1071,50 @@ class DeliveryHistory extends StatefulWidget {
 }
 
 class _DeliveryHistoryState extends State<DeliveryHistory> {
+  final _api = CourierApi.fromSession();
   _HistoryFilter _filter = _HistoryFilter.tout;
+  List<CourierDelivery>? _deliveries;
+  bool _loading = true;
+  String? _error;
 
-  static const List<_HistoryEntry> _entries = [
-    (
-      date: "Aujourd'hui, 22 Juin 2026",
-      pharmacy: 'Pharmacie Okala',
-      amount: '2 000 FCFA',
-      time: 'Livré à 14:32',
-      success: true,
-    ),
-    (
-      date: "Aujourd'hui, 22 Juin 2026",
-      pharmacy: 'Pharmacie des Facultés',
-      amount: '0 FCFA',
-      time: 'Annulé à 11:15',
-      success: false,
-    ),
-    (
-      date: 'Hier, 21 Juin 2026',
-      pharmacy: "Pharmacie d'Akanda",
-      amount: '3 500 FCFA',
-      time: 'Livré à 18:45',
-      success: true,
-    ),
-    (
-      date: 'Hier, 21 Juin 2026',
-      pharmacy: 'Pharmacie du Pont',
-      amount: '1 500 FCFA',
-      time: 'Livré à 09:20',
-      success: true,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
-  void _showEntryDetails(_HistoryEntry entry) {
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final deliveries = await _api.fetchDeliveryHistory();
+      if (!mounted) return;
+      setState(() {
+        _deliveries = deliveries;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
+
+  void _showEntryDetails(CourierDelivery entry) {
+    final date = entry.historyDate;
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(entry.pharmacy),
+        title: Text(entry.pharmacy.name),
         content: Text(
-          '${entry.success ? 'Livré' : 'Annulé'} · ${entry.time}\n'
-          'Montant : ${entry.amount}\n${entry.date}',
+          '${entry.statusLabel}'
+          '${date != null ? ' · ${_historyDateLabel(date)} à ${_historyTimeLabel(date)}' : ''}\n'
+          'Part livreur : ${formatFcfa(entry.courierShareFcfa)} FCFA'
+          '${entry.orderReference != null ? '\nCommande ${entry.orderReference}' : ''}',
         ),
         actions: [
           TextButton(
@@ -1125,15 +1138,32 @@ class _DeliveryHistoryState extends State<DeliveryHistory> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _entries.where((entry) => switch (_filter) {
+    final deliveries = _deliveries ?? const <CourierDelivery>[];
+    final filtered = deliveries.where((entry) => switch (_filter) {
       _HistoryFilter.tout => true,
-      _HistoryFilter.livre => entry.success,
-      _HistoryFilter.annule => !entry.success,
+      _HistoryFilter.livre => entry.status == 'delivered',
+      _HistoryFilter.retourne => entry.status == 'returned',
+      _HistoryFilter.annule => entry.status == 'cancelled',
     }).toList();
-    final groups = <String, List<_HistoryEntry>>{};
+    final groups = <String, List<CourierDelivery>>{};
     for (final entry in filtered) {
-      groups.putIfAbsent(entry.date, () => []).add(entry);
+      final date = entry.historyDate;
+      final label = date != null ? _historyDateLabel(date) : 'Date inconnue';
+      groups.putIfAbsent(label, () => []).add(entry);
     }
+    final now = DateTime.now();
+    final thisMonthCount = deliveries.where((entry) {
+      final date = entry.historyDate;
+      return date != null && date.year == now.year && date.month == now.month;
+    }).length;
+    // Part livreur des courses effectivement livrées uniquement — le solde
+    // faisant autorité (avances/retenues comprises) reste celui du ledger
+    // (onglet Revenus), pas encore branché sur ce même total.
+    final totalEarningsFcfa = deliveries
+        .where((entry) => entry.status == 'delivered')
+        .fold<int>(0, (sum, entry) => sum + entry.courierShareFcfa);
+    final monthName = _frenchMonths[now.month - 1];
+    final monthLabel = '${monthName[0].toUpperCase()}${monthName.substring(1)} ${now.year}';
 
     return Column(
       children: [
@@ -1143,113 +1173,123 @@ class _DeliveryHistoryState extends State<DeliveryHistory> {
           onToggle: () => widget.onOnlineChanged(!widget.online),
         ),
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-            children: [
-              Row(
-                children: const [
-                  Expanded(child: _HistoryStatCard('Total Courses', '148')),
-                  SizedBox(width: 12),
-                  Expanded(child: _HistoryStatCard('Ce Mois', '42')),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFA8F4B9),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Revenus Totaux',
-                      style: TextStyle(
-                        color: Color(0xFF287243),
-                        fontWeight: FontWeight.w600,
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+              ? _HomeErrorState(message: _error!, onRetry: _load)
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: _HistoryStatCard('Total Courses', '${deliveries.length}')),
+                          const SizedBox(width: 12),
+                          Expanded(child: _HistoryStatCard('Ce Mois', '$thisMonthCount')),
+                        ],
                       ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      '296 000 FCFA',
-                      style: TextStyle(
-                        color: Color(0xFF287243),
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFA8F4B9),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Revenus Totaux',
+                              style: TextStyle(color: Color(0xFF287243), fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${formatFcfa(totalEarningsFcfa)} FCFA',
+                              style: const TextStyle(
+                                color: Color(0xFF287243),
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                height: 44,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    _FilterPill(
-                      label: 'Tout',
-                      selected: _filter == _HistoryFilter.tout,
-                      onTap: () => setState(() => _filter = _HistoryFilter.tout),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterPill(
-                      label: 'Livré',
-                      selected: _filter == _HistoryFilter.livre,
-                      onTap: () => setState(() => _filter = _HistoryFilter.livre),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterPill(
-                      label: 'Annulé',
-                      selected: _filter == _HistoryFilter.annule,
-                      onTap: () => setState(() => _filter = _HistoryFilter.annule),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterPill(
-                      label: 'Juin 2026',
-                      icon: Icons.calendar_month,
-                      selected: false,
-                      onTap: _showMonthPicker,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (filtered.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(
-                    child: Text(
-                      'Aucune course pour ce filtre.',
-                      style: TextStyle(color: GabColors.muted),
-                    ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        height: 44,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            _FilterPill(
+                              label: 'Tout',
+                              selected: _filter == _HistoryFilter.tout,
+                              onTap: () => setState(() => _filter = _HistoryFilter.tout),
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterPill(
+                              label: 'Livré',
+                              selected: _filter == _HistoryFilter.livre,
+                              onTap: () => setState(() => _filter = _HistoryFilter.livre),
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterPill(
+                              label: 'Retourné',
+                              selected: _filter == _HistoryFilter.retourne,
+                              onTap: () => setState(() => _filter = _HistoryFilter.retourne),
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterPill(
+                              label: 'Annulé',
+                              selected: _filter == _HistoryFilter.annule,
+                              onTap: () => setState(() => _filter = _HistoryFilter.annule),
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterPill(
+                              label: monthLabel,
+                              icon: Icons.calendar_month,
+                              selected: false,
+                              onTap: _showMonthPicker,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (filtered.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 32),
+                          child: Center(
+                            child: Text(
+                              'Aucune course pour ce filtre.',
+                              style: TextStyle(color: GabColors.muted),
+                            ),
+                          ),
+                        )
+                      else
+                        for (final group in groups.entries) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                            child: Text(
+                              group.key,
+                              style: const TextStyle(
+                                color: GabColors.muted,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          for (final entry in group.value)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _HistoryEntryCard(
+                                entry: entry,
+                                onTap: () => _showEntryDetails(entry),
+                              ),
+                            ),
+                        ],
+                    ],
                   ),
-                )
-              else
-                for (final group in groups.entries) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-                    child: Text(
-                      group.key,
-                      style: const TextStyle(
-                        color: GabColors.muted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  for (final entry in group.value)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _HistoryEntryCard(
-                        entry: entry,
-                        onTap: () => _showEntryDetails(entry),
-                      ),
-                    ),
-                ],
-            ],
-          ),
+                ),
         ),
       ],
     );
@@ -1331,100 +1371,121 @@ class _FilterPill extends StatelessWidget {
 
 class _HistoryEntryCard extends StatelessWidget {
   const _HistoryEntryCard({required this.entry, required this.onTap});
-  final _HistoryEntry entry;
+  final CourierDelivery entry;
   final VoidCallback onTap;
 
+  static const _statusColors = {
+    'delivered': GabColors.secondary,
+    'returned': GabColors.warning,
+    'cancelled': GabColors.danger,
+  };
+
+  static const _statusIcons = {
+    'delivered': Icons.task_alt,
+    'returned': Icons.assignment_return,
+    'cancelled': Icons.cancel,
+  };
+
+  // Libellés courts pour le badge (le statusLabel complet du backend, ex.
+  // "Retournée à la pharmacie", est trop long pour ce badge en ligne avec
+  // l'heure — le libellé complet reste affiché dans le dialogue de détail.
+  static const _statusBadgeLabels = {
+    'delivered': 'LIVRÉ',
+    'returned': 'RETOUR',
+    'cancelled': 'ANNULÉ',
+  };
+
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(16),
-    child: InkWell(
-      onTap: onTap,
+  Widget build(BuildContext context) {
+    final color = _statusColors[entry.status] ?? GabColors.muted;
+    final icon = _statusIcons[entry.status] ?? Icons.help_outline;
+    final badgeLabel = _statusBadgeLabels[entry.status] ?? entry.statusLabel.toUpperCase();
+    final date = entry.historyDate;
+    final isDelivered = entry.status == 'delivered';
+    return Material(
+      color: Colors.white,
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: entry.success
-                    ? GabColors.secondary.withValues(alpha: 0.12)
-                    : GabColors.danger.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color),
               ),
-              child: Icon(
-                entry.success ? Icons.task_alt : Icons.cancel,
-                color: entry.success ? GabColors.secondary : GabColors.danger,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          entry.pharmacy,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        entry.amount,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: entry.success ? GabColors.primary : GabColors.muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        entry.time,
-                        style: const TextStyle(color: GabColors.muted, fontSize: 12),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: entry.success
-                              ? GabColors.secondary.withValues(alpha: 0.15)
-                              : GabColors.danger.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          entry.success ? 'SUCCÈS' : 'ANNULÉ',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.4,
-                            color: entry.success ? GabColors.secondary : GabColors.danger,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            entry.pharmacy.name,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 8),
+                        Text(
+                          '${formatFcfa(entry.courierShareFcfa)} FCFA',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: isDelivered ? GabColors.primary : GabColors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          date != null ? _historyTimeLabel(date) : '',
+                          style: const TextStyle(color: GabColors.muted, fontSize: 12),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            badgeLabel,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.4,
+                              color: color,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: GabColors.outlineVariant),
-          ],
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right, color: GabColors.outlineVariant),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 enum _EarningsPeriod { quotidien, hebdomadaire }
