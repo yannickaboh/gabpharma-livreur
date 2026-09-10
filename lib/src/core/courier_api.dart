@@ -8,6 +8,8 @@ class Pharmacy {
     required this.zoneLabel,
     required this.address,
     required this.phone,
+    this.latitude,
+    this.longitude,
   });
 
   final int id;
@@ -15,6 +17,8 @@ class Pharmacy {
   final String zoneLabel;
   final String address;
   final String phone;
+  final double? latitude;
+  final double? longitude;
 
   factory Pharmacy.fromJson(Map<String, dynamic> json) => Pharmacy(
     id: json['id'] as int,
@@ -22,6 +26,8 @@ class Pharmacy {
     zoneLabel: json['zone_label'] as String? ?? '',
     address: json['address'] as String? ?? '',
     phone: json['phone'] as String? ?? '',
+    latitude: (json['latitude'] as num?)?.toDouble(),
+    longitude: (json['longitude'] as num?)?.toDouble(),
   );
 }
 
@@ -121,6 +127,7 @@ class CourierDelivery {
     this.orderCreatedAt,
     this.deliveredAt,
     this.returnedAt,
+    this.deliveryNote,
   });
 
   final int id;
@@ -142,6 +149,7 @@ class CourierDelivery {
   final DateTime? orderCreatedAt;
   final DateTime? deliveredAt;
   final DateTime? returnedAt;
+  final String? deliveryNote;
 
   /// Meilleure date disponible pour une course clôturée : la remise, sinon
   /// le retour à la pharmacie, sinon la création de la commande (le backend
@@ -178,6 +186,7 @@ class CourierDelivery {
       orderCreatedAt: orderCreatedAt != null ? DateTime.tryParse(orderCreatedAt) : null,
       deliveredAt: deliveredAt != null ? DateTime.tryParse(deliveredAt) : null,
       returnedAt: returnedAt != null ? DateTime.tryParse(returnedAt) : null,
+      deliveryNote: json['delivery_note'] as String?,
     );
   }
 }

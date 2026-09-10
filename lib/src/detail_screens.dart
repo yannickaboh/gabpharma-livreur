@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'core/api_client.dart';
 import 'core/courier_api.dart';
@@ -2028,411 +2029,525 @@ class _OpenIncidentCard extends StatelessWidget {
   );
 }
 
-class NavigationMapScreen extends StatelessWidget {
+/// Carte et navigation (ecran 09), branchee sur la vraie course active
+/// (Option A : `fetchActiveDeliveries()`, meme pattern que `IncidentScreen`
+/// et `ActiveDeliveryScreen` — un seul livreur n'a qu'une course active en
+/// MVP). Vrai SDK `google_maps_flutter` : marker pharmacie (coordonnees
+/// reelles, §3.4 du contrat) + marker livreur (position reelle via
+/// `geolocator`, meme mecanisme que le ping envoye pendant la course active).
+/// Aucune coordonnee n'existe cote backend pour l'adresse de livraison
+/// (texte libre uniquement) : pas de marker destination invente, l'adresse
+/// reste affichee en texte dans le panneau patient. Idem pour le "temps
+/// estime" du mockup original : aucune API de routage n'est branchee, retire
+/// plutot que devine ; seule une distance a vol d'oiseau vers la pharmacie
+/// est affichee, et seulement avant la collecte.
+class NavigationMapScreen extends StatefulWidget {
   const NavigationMapScreen({super.key});
 
-  void _callPatient(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Appeler la patiente'),
-        content: const Text(
-          'Appelez Mme. Obiang au +241 07 00 00 00 depuis votre téléphone.',
+  @override
+  State<NavigationMapScreen> createState() => _NavigationMapScreenState();
+}
+
+class _NavigationMapScreenState extends State<NavigationMapScreen> {
+  final _api = CourierApi.fromSession();
+  CourierDelivery? _delivery;
+  bool _loading = true;
+  String? _error;
+
+  GoogleMapController? _mapController;
+  Position? _courierPosition;
+  StreamSubscription<Position>? _positionSub;
+  bool _locationDenied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _startPositionStream();
+  }
+
+  @override
+  void dispose() {
+    _positionSub?.cancel();
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final active = await _api.fetchActiveDeliveries();
+      if (!mounted) return;
+      setState(() {
+        _delivery = active.isEmpty ? null : active.first;
+        _error = active.isEmpty ? 'Aucune course active pour le moment.' : null;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
+
+  /// Meme logique de permission que le ping de position de
+  /// `ActiveDeliveryScreen` : echec silencieux (GPS coupe, permission
+  /// refusee...) jamais bloquant, la carte reste utilisable sans le marker
+  /// livreur ni le bouton "recentrer".
+  Future<void> _startPositionStream() async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => _locationDenied = true);
+        return;
+      }
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        if (mounted) setState(() => _locationDenied = true);
+        return;
+      }
+      final initial = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (mounted) setState(() => _courierPosition = initial);
+      _positionSub = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
+      ).listen((position) {
+        if (!mounted) return;
+        setState(() => _courierPosition = position);
+      });
+    } catch (_) {
+      if (mounted) setState(() => _locationDenied = true);
+    }
+  }
+
+  void _recenter() {
+    final position = _courierPosition;
+    if (position == null || _mapController == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Position indisponible — vérifiez que la localisation est activée.',
           ),
-        ],
-      ),
+        ),
+      );
+      return;
+    }
+    _mapController!.animateCamera(
+      CameraUpdate.newLatLngZoom(LatLng(position.latitude, position.longitude), 16),
     );
   }
 
-  void _showDeliveryInfo(BuildContext context) {
+  void _callPatient() {
+    final delivery = _delivery!;
+    final name = delivery.recipientName ?? 'le patient';
+    final phone = delivery.patientPhone;
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Informations de livraison'),
-        content: const Text(
-          'Portail vert, 2ème étage. Sonnez chez Obiang. '
-          'Colis à remettre en main propre contre code OTP.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _recenter(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+        title: const Text('Appeler le patient'),
         content: Text(
-          'Carte simplifiée à titre illustratif : recentrage indisponible en démonstration.',
+          phone != null
+              ? 'Appelez $name au $phone depuis votre téléphone.'
+              : 'Aucun numéro de téléphone renseigné pour $name.',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeliveryInfo() {
+    final note = _delivery?.deliveryNote;
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Note de livraison'),
+        content: Text(
+          note?.isNotEmpty == true
+              ? note!
+              : 'Aucune note de livraison renseignée pour cette course.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: GabColors.background,
-    body: Stack(
-      children: [
-        Positioned.fill(
-          child: CustomPaint(
-            painter: _MockMapPainter(),
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final delivery = _delivery;
+    if (_error != null || delivery == null) {
+      return Scaffold(
+        backgroundColor: GabColors.background,
+        appBar: AppBar(
+          backgroundColor: GabColors.background,
+          elevation: 0,
+          title: const Text(
+            'Navigation',
+            style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800),
           ),
         ),
-        SafeArea(
-          child: Column(
-            children: [
-              Material(
-                color: Colors.white,
-                elevation: 1,
-                shadowColor: Colors.black.withValues(alpha: 0.08),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.arrow_back, color: GabColors.primary),
-                      ),
-                      const Icon(Icons.delivery_dining, color: GabColors.primary, size: 26),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          "Gab'Pharma Livreur",
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: GabColors.primary,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: GabColors.softGreen,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.circle, size: 8, color: GabColors.primary),
-                            SizedBox(width: 6),
-                            Text(
-                              'EN LIGNE',
-                              style: TextStyle(
-                                color: GabColors.primary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.info_outline, size: 40, color: GabColors.muted),
+                const SizedBox(height: 12),
+                Text(
+                  _error ?? 'Course introuvable.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: GabColors.muted),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    constraints: const BoxConstraints(maxWidth: 180),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.92),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: GabColors.outlineVariant.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Réessayer'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final pharmacy = delivery.pharmacy;
+    final hasPharmacyCoords = pharmacy.latitude != null && pharmacy.longitude != null;
+    final courierPosition = _courierPosition;
+
+    final markers = <Marker>{
+      if (hasPharmacyCoords)
+        Marker(
+          markerId: const MarkerId('pharmacy'),
+          position: LatLng(pharmacy.latitude!, pharmacy.longitude!),
+          infoWindow: InfoWindow(title: pharmacy.name, snippet: pharmacy.address),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        ),
+      if (courierPosition != null)
+        Marker(
+          markerId: const MarkerId('courier'),
+          position: LatLng(courierPosition.latitude, courierPosition.longitude),
+          infoWindow: const InfoWindow(title: 'Ma position'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        ),
+    };
+
+    final initialTarget = courierPosition != null
+        ? LatLng(courierPosition.latitude, courierPosition.longitude)
+        : hasPharmacyCoords
+        ? LatLng(pharmacy.latitude!, pharmacy.longitude!)
+        : const LatLng(0.3901, 9.4544); // Libreville, dernier recours
+
+    String? distanceLabel;
+    if (delivery.status == 'assigned' && hasPharmacyCoords && courierPosition != null) {
+      final meters = Geolocator.distanceBetween(
+        courierPosition.latitude,
+        courierPosition.longitude,
+        pharmacy.latitude!,
+        pharmacy.longitude!,
+      );
+      distanceLabel = meters >= 1000
+          ? '${(meters / 1000).toStringAsFixed(1)} km'
+          : '${meters.round()} m';
+    }
+
+    return Scaffold(
+      backgroundColor: GabColors.background,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: GoogleMap(
+              initialCameraPosition: CameraPosition(target: initialTarget, zoom: 14),
+              markers: markers,
+              myLocationEnabled: !_locationDenied,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              onMapCreated: (controller) => _mapController = controller,
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                Material(
+                  color: Colors.white,
+                  elevation: 1,
+                  shadowColor: Colors.black.withValues(alpha: 0.08),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
                       children: [
-                        Text(
-                          'SECTEUR ACTUEL',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.6,
-                            color: GabColors.muted,
-                          ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.arrow_back, color: GabColors.primary),
                         ),
-                        Text(
-                          'Libreville Centre',
-                          style: TextStyle(fontWeight: FontWeight.w800),
+                        const Icon(Icons.delivery_dining, color: GabColors.primary, size: 26),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            "Gab'Pharma Livreur",
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: GabColors.primary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.95),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            const Icon(Icons.schedule, color: GabColors.primary),
-                            const SizedBox(width: 10),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Temps estimé',
-                                  style: TextStyle(fontSize: 11, color: GabColors.muted),
-                                ),
-                                const Text(
-                                  '12 min',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: GabColors.primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      constraints: const BoxConstraints(maxWidth: 200),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: GabColors.outlineVariant.withValues(alpha: 0.4),
                         ),
                       ),
-                      Container(width: 1, height: 36, color: GabColors.outlineVariant),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Row(
-                          children: [
-                            const Icon(Icons.straighten, color: GabColors.primary),
-                            const SizedBox(width: 10),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Distance',
-                                  style: TextStyle(fontSize: 11, color: GabColors.muted),
-                                ),
-                                const Text(
-                                  '4.2 km',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: GabColors.primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFA8F4B9),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.person, color: Color(0xFF287243)),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Patiente : Mme. Obiang',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const Text(
-                                  'Quartier Louis, Rue 12.045',
-                                  style: TextStyle(color: GabColors.muted),
-                                ),
-                              ],
+                          const Text(
+                            'ZONE',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                              color: GabColors.muted,
                             ),
                           ),
-                          IconButton(
-                            onPressed: () => _showDeliveryInfo(context),
-                            style: IconButton.styleFrom(
-                              backgroundColor: const Color(0xFFDCECE3),
-                            ),
-                            icon: const Icon(Icons.info_outline, color: GabColors.primary),
+                          Text(
+                            delivery.zoneLabel,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => _callPatient(context),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(56),
-                                shape: const StadiumBorder(),
-                                side: const BorderSide(color: GabColors.primary, width: 2),
-                              ),
-                              icon: const Icon(Icons.call_outlined),
-                              label: const Text('Appeler Patiente'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: () => Navigator.pop(context),
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(56),
-                                shape: const StadiumBorder(),
-                              ),
-                              icon: const Icon(Icons.arrow_back),
-                              label: const Text('Retour à la course'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              const Icon(Icons.straighten, color: GabColors.primary),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Distance pharmacie',
+                                      style: TextStyle(fontSize: 11, color: GabColors.muted),
+                                    ),
+                                    Text(
+                                      distanceLabel ?? '—',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        color: GabColors.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(width: 1, height: 36, color: GabColors.outlineVariant),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              const Icon(Icons.local_shipping_outlined, color: GabColors.primary),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Statut',
+                                      style: TextStyle(fontSize: 11, color: GabColors.muted),
+                                    ),
+                                    Text(
+                                      delivery.statusLabel,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: GabColors.primary,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFA8F4B9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.person, color: Color(0xFF287243)),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    delivery.recipientName ?? 'Patient',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    delivery.deliveryAddress?.isNotEmpty == true
+                                        ? '${delivery.deliveryAddress}, ${delivery.zoneLabel}'
+                                        : delivery.zoneLabel,
+                                    style: const TextStyle(color: GabColors.muted),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: _showDeliveryInfo,
+                              style: IconButton.styleFrom(
+                                backgroundColor: const Color(0xFFDCECE3),
+                              ),
+                              icon: const Icon(Icons.info_outline, color: GabColors.primary),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _callPatient,
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(56),
+                                  shape: const StadiumBorder(),
+                                  side: const BorderSide(color: GabColors.primary, width: 2),
+                                ),
+                                icon: const Icon(Icons.call_outlined),
+                                label: const Text('Appeler'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () => Navigator.pop(context),
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(56),
+                                  shape: const StadiumBorder(),
+                                ),
+                                icon: const Icon(Icons.arrow_back),
+                                label: const Text('Retour à la course'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        Positioned(
-          right: 16,
-          bottom: 240,
-          child: FloatingActionButton(
-            heroTag: 'recenter',
-            backgroundColor: Colors.white,
-            foregroundColor: GabColors.primary,
-            onPressed: () => _recenter(context),
-            child: const Icon(Icons.my_location),
+          Positioned(
+            right: 16,
+            bottom: 240,
+            child: FloatingActionButton(
+              heroTag: 'recenter',
+              backgroundColor: Colors.white,
+              foregroundColor: GabColors.primary,
+              onPressed: _recenter,
+              child: const Icon(Icons.my_location),
+            ),
           ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _MockMapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()..color = const Color(0xFFE2EFE8);
-    canvas.drawRect(Offset.zero & size, bgPaint);
-
-    final roadPaint = Paint()
-      ..color = const Color(0xFFBEC9BD)
-      ..strokeWidth = 6;
-    for (final fraction in [0.2, 0.45, 0.7]) {
-      canvas.drawLine(
-        Offset(0, size.height * fraction),
-        Offset(size.width, size.height * fraction),
-        roadPaint,
-      );
-    }
-    for (final fraction in [0.25, 0.55, 0.85]) {
-      canvas.drawLine(
-        Offset(size.width * fraction, 0),
-        Offset(size.width * fraction, size.height),
-        roadPaint,
-      );
-    }
-
-    final start = Offset(size.width * 0.25, size.height * 0.44);
-    final bend = Offset(size.width * 0.5, size.height * 0.44);
-    final end = Offset(size.width * 0.5, size.height * 0.68);
-
-    final routePaint = Paint()
-      ..color = const Color(0xFF004F26)
-      ..strokeWidth = 5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final path = Path()
-      ..moveTo(start.dx, start.dy)
-      ..lineTo(bend.dx, bend.dy)
-      ..lineTo(end.dx, end.dy);
-    canvas.drawPath(path, routePaint);
-
-    canvas.drawCircle(start, 10, Paint()..color = const Color(0xFF006A35));
-    canvas.drawCircle(
-      end,
-      26,
-      Paint()..color = const Color(0xFFBA1A1A).withValues(alpha: 0.15),
+        ],
+      ),
     );
-    canvas.drawCircle(end, 12, Paint()..color = const Color(0xFFBA1A1A));
-
-    final courierPos = Offset(size.width * 0.5, size.height * 0.44);
-    canvas.drawCircle(courierPos, 9, Paint()..color = const Color(0xFF004F26));
-
-    TextPainter buildLabel(String text, Color color) {
-      final painter = TextPainter(
-        text: TextSpan(
-          text: text,
-          style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      painter.layout();
-      return painter;
-    }
-
-    buildLabel(
-      'Pharmacie du Bord de Mer',
-      const Color(0xFF004F26),
-    ).paint(canvas, start + const Offset(16, -6));
-    buildLabel(
-      'Patiente',
-      const Color(0xFFBA1A1A),
-    ).paint(canvas, end + const Offset(18, -6));
   }
-
-  @override
-  bool shouldRepaint(covariant _MockMapPainter oldDelegate) => false;
 }
 
 typedef _Zone = ({String code, String label});

@@ -37,8 +37,8 @@
             android:name="flutterEmbedding"
             android:value="2" />
         <!-- Clé Google Maps SDK, injectée via manifestPlaceholders depuis android/local.properties
-             (gitignored) — voir android/app/build.gradle.kts. Le SDK google_maps_flutter n'est pas
-             encore ajouté au pubspec ; ce placeholder ne sert à rien tant qu'il n'est pas branché. -->
+             (gitignored) — voir android/app/build.gradle.kts. Utilisée par google_maps_flutter
+             depuis le branchement de l'écran 09 (Carte et navigation), le 8 septembre 2026. -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${mapsApiKey}" />

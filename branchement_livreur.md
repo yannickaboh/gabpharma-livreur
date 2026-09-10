@@ -46,7 +46,7 @@ Aligné sur `api_contrat_besoins.md` §7 :
 2. [x] **Mot de passe oublié** — voir ci-dessus.
 3. [x] **Accueil, Courses disponibles, Détail course** — voir §3 ci-dessous.
 4. [x] **Course active et signalement d'incident** — voir §4 ci-dessous.
-5. [ ] Carte et navigation — bouton « ouvrir navigation interne » uniquement (position temps réel, contrat effectif).
+5. [x] **Carte et navigation** — voir §10 ci-dessous.
 6. [x] **Historique** — voir §8 ci-dessous.
 7. [x] **Revenus et ledger** — voir §9 ci-dessous.
 8. [x] **Zones et disponibilité** — voir §7 ci-dessous.
@@ -169,6 +169,35 @@ Point transverse repéré au module 4 (voir ci-dessus), traité en priorité ava
 - Onglet Hebdomadaire : "Dû à Gab'Pharma" = 200 FCFA, "Dû par Gab'Pharma" = 360 FCFA — correct (la commission de lundi entre dans la semaine ISO en cours, l'écriture de juillet reste exclue).
 - Liste "Mouvements du compte" : les 3 écritures affichées avec le bon libellé, la bonne raison, la bonne date relative ("Aujourd'hui à 15:19"/"Hier à 10:20"/"5 juillet 2026 à 14:57"), le bon badge et le bon signe/couleur — aucune donnée inventée.
 - Dialogue d'info et bouton "Demander un virement" vérifiés sans overflow. Aucun overflow constaté sur l'ensemble de l'écran (bento avec libellés tronqués proprement en ellipse : "Dû à Gab'Phar…"/"Dû par Gab'Pha…").
+
+## 10. Carte et navigation (10 septembre 2026)
+
+Écran 09 (`NavigationMapScreen`, route `/map`) — n'était pas branché du tout jusqu'ici (`CustomPainter` illustratif, "Mme. Obiang"/"Pharmacie du Bord de Mer" 100 % inventés, recentrage GPS honnêtement désactivé). Décision actée le 8 septembre 2026 (voir "Ordre convenu" ci-dessus et `api_contrat_besoins.md` §7 item 4) : un vrai SDK `google_maps_flutter` plutôt qu'un simple bouton "ouvrir navigation externe", la position temps réel du livreur étant disponible côté backend depuis le 4 septembre (§5).
+
+- `google_maps_flutter: ^2.18.0` ajouté au `pubspec.yaml` (même version que l'app Patient, précédent déjà fonctionnel). Clé Google Maps déjà préparée dans `android/local.properties`/`AndroidManifest.xml` depuis le Lot 2 (commentaire du manifeste mis à jour, il disait à tort que le SDK n'était pas encore branché).
+- `Pharmacy` (`courier_api.dart`) gagne `latitude`/`longitude` (nullable — `null` si la pharmacie n'a pas de coordonnées renseignées, comme documenté en §3.4 de `api_contrat_besoins.md` mais jamais consommé côté Flutter jusqu'ici). `CourierDelivery` gagne `deliveryNote` (`delivery.delivery_note`, réel, jusqu'ici jamais parsé).
+- `NavigationMapScreen` entièrement réécrit en `StatefulWidget` : récupère la course active via `fetchActiveDeliveries()` (Option A, même pattern que `ActiveDeliveryScreen`/`IncidentScreen` — un seul livreur n'a qu'une course active en MVP), pas d'argument de route.
+- **Deux écarts assumés par rapport au mockup d'origine, tranchés avant le codage plutôt que devinés** (voir questions posées à l'utilisateur le 8 septembre) :
+  - **Aucun marqueur "destination"** : `order.delivery_address` est un texte libre, sans coordonnées GPS côté API (contrairement à la pharmacie, qui les a depuis le 28 août — §3.4). L'adresse reste affichée en texte dans le panneau patient, sans pin inventé.
+  - **Panneau "Temps estimé / Distance" refondu en "Distance pharmacie / Statut"** : "Temps estimé" retiré (aucune API de routage/trafic branchée, aucune donnée honnête possible) ; "Distance" devient une distance à vol d'oiseau (`Geolocator.distanceBetween`) entre la position réelle du livreur et la pharmacie, affichée uniquement tant que le statut est `assigned` (avant collecte — après, la seule destination possible est l'adresse de livraison, sans coordonnées) ; sinon "—". "Statut" (nouvelle colonne) affiche le vrai `delivery.statusLabel`.
+- Marker pharmacie (icône verte) affiché si `pharmacy.latitude`/`longitude` non nuls, quel que soit le statut (donnée réelle, pas de raison de la cacher après collecte). Marker livreur (icône azur) affiché dès qu'une position réelle est disponible via un flux `Geolocator.getPositionStream` démarré à l'ouverture de l'écran (permission demandée avec le même mécanisme que le ping de position de l'écran 08 — échec silencieux si refusée/GPS coupé, jamais bloquant).
+- FAB "Recentrer" : anime réellement la caméra vers la position courante (`GoogleMapController.animateCamera`) au lieu du message "indisponible en démonstration" ; si aucune position n'est disponible, un message honnête explique pourquoi plutôt que de rester silencieux.
+- Chip "SECTEUR ACTUEL" (fixe, "Libreville Centre") remplacé par "ZONE" alimenté par `delivery.zoneLabel` réel.
+- Dialogue "Informations de livraison" (texte inventé "Portail vert, 2ème étage...") remplacé par un dialogue "Note de livraison" affichant `delivery.deliveryNote` réel, ou un texte honnête si vide.
+- Boutons "Appeler"/"Retour à la course" conservés, données réelles (nom/téléphone du patient) — même dialogue honnête que `ActiveDeliveryScreen`.
+- `_MockMapPainter` (CustomPainter illustratif) supprimé, plus aucune référence.
+- `flutter analyze` propre sur les 2 fichiers modifiés (`courier_api.dart`, `detail_screens.dart`).
+
+**Vérifié de bout en bout sur S8 physique le 10 septembre 2026**, compte `livreur@gabpharma.ga` ("Carine Mba"), course active réelle (id 6, statut `in_transit`, client Joël Mba) atteinte depuis la carte "Course active" de l'Accueil → "Démarrer l'itinéraire" :
+- Chip "ZONE" : "Libreville" (réel). Panneau "Distance pharmacie" : "—" (pharmacie de démo sans coordonnées en base — cas honnête vérifié), "Statut" : "En livraison" (réel).
+- Carte Google Maps réelle chargée (tuiles et POI réels visibles — bars, hôtel, terrain de basket, pharmacie voisine dans le quartier Awendjé/Libreville), confirmant que la clé API et le SDK fonctionnent de bout en bout.
+- FAB "Recentrer" : anime réellement la caméra vers la position GPS réelle du livreur (testée avec le vrai GPS du S8, marker bleu avec indicateur de direction affiché sur la position réelle).
+- Dialogue "Note de livraison" : message honnête "Aucune note de livraison renseignée pour cette course." (aucune note en base pour cette course de démo).
+- Dialogue "Appeler le patient" : nom et téléphone réels ("Joël Mba", "+24107770002").
+- "Retour à la course" : retour propre à l'Accueil, aucun crash.
+- Aucun overflow constaté sur l'ensemble de l'écran.
+
+**Non testé en conditions réelles, vérifié par lecture de code uniquement** (aucune pharmacie de démo assignée à un livreur disponible n'avait de coordonnées GPS en base au moment du test, et en créer une par les vrais services aurait exigé de construire une commande complète depuis zéro) : le marker pharmacie lui-même (même construction `Marker` que le marker livreur, déjà prouvé fonctionnel à l'écran) et le calcul numérique de "Distance pharmacie" au statut `assigned` (simple appel `Geolocator.distanceBetween`, API standard). Des coordonnées réelles avaient été temporairement assignées à la pharmacie de démo du compte pour préparer ce test, mais retirées avant d'avoir pu terminer la vérification visuelle sur S8 (session interrompue) — retirées définitivement car ce n'était de toute façon pas une donnée exacte à laisser en base. À revérifier visuellement si l'occasion se présente (ex. une vraie pharmacie avec coordonnées assignée à une course de démo), sans que cela bloque la validation du module : le code des deux chemins (avec/sans coordonnées) est symétrique et le chemin "sans coordonnées" est, lui, bien vérifié en direct.
 
 ## Rappel d'environnement pour reprendre cette session de branchement
 

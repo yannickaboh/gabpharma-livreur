@@ -40,6 +40,8 @@
 
 ## 2. Cartographie — mêmes options que côté Patient, mais enjeu plus fort ici
 
+**Tranché le 8 septembre 2026, fait le 10 septembre 2026 :** décision produit en faveur de l'option 2.2 ci-dessous (Google Maps SDK natif) plutôt que la recommandation OSM/`flutter_map` de l'option 2.1 — la clé était déjà provisionnée, et la position temps réel du livreur (§3, devenue disponible depuis) rendait une vraie carte interactive plus utile qu'un simple renvoi vers une app externe. **Scope volontairement limité à l'écran 09** (Carte et navigation, l'outil de travail en déplacement) — l'écran 13 (Zones et disponibilité) garde son `CustomPainter` illustratif, aucune décision prise pour lui. Voir `branchement_livreur.md` §10 et `CLAUDE.md` pour le détail du branchement et la vérification S8. Les sous-sections ci-dessous sont conservées telles quelles à titre de traçabilité de la décision (rédigées avant l'arbitrage).
+
 ### 2.1 Option recommandée : OpenStreetMap + `flutter_map` (gratuit, sans clé)
 
 **Description :** décision déjà actée côté web (`documentation/vitrine.md`) et recommandée côté Patient. **À reproduire côté Livreur pour la même raison de cohérence**, sauf si le produit veut explicitement l'expérience Google Maps native.
@@ -153,9 +155,9 @@ Mêmes recommandations que côté Patient (`api_utilitaires.md` §8) : Sentry ou
 |---|---|---|---|
 | Firebase Cloud Messaging | Non bloquant — les notifications fonctionnent déjà en flux agrégé à l'ouverture | **Non — déjà fait** (projet `gabpharma-fcm` existant) | Backend 100 % prêt, reste l'intégration Flutter |
 | E-mail transactionnel de production | **Oui** — sans lui, la 2FA et le dossier documentaire ne fonctionneront pas en vrai | Oui (partagé avec Patient) | Non fait |
-| OpenStreetMap/`flutter_map` | Non bloquant — l'écran 09 fonctionne déjà en mode illustratif honnête | Non | Non intégré |
-| Géolocalisation temps réel du livreur | Non — hors contrat actuel, décision produit non prise | Non (capacité appareil) | Cadré seulement, rien construit ni côté backend ni côté Flutter |
+| OpenStreetMap/`flutter_map` | Non — Google Maps retenu à la place pour l'écran 09 (8-10 septembre 2026) | Non | Non retenu, ne pas rouvrir sans raison nouvelle |
+| Géolocalisation temps réel du livreur | Non — **fait et vérifié le 4 septembre 2026** | Non (capacité appareil) | Ping de position en premier plan pendant une course active, branché côté backend et Flutter |
 | Règlement des soldes livreurs (Mobile Money/virement) | Non — reste une action Staff par design | Sans objet | Fonctionnel côté Staff, volontairement absent du mobile |
-| Google Maps SDK natif | Non — alternative optionnelle à OSM/Leaflet | Clé déjà provisionnée, paquet jamais ajouté | En attente de décision |
+| Google Maps SDK natif | Non — **fait et vérifié le 10 septembre 2026** (écran 09 uniquement) | Clé déjà provisionnée | `google_maps_flutter` ajouté et branché, voir `branchement_livreur.md` §10 |
 | SMS | Non — décision définitivement tranchée (aucun fournisseur) | Sans objet | Réglé, ne pas rouvrir |
 | Sentry / Crashlytics | Non bloquant, recommandé | Oui | Non fait |
