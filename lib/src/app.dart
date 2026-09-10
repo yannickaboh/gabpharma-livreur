@@ -35,11 +35,7 @@ class GabPharmaLivreurApp extends StatelessWidget {
       '/support': (_) => const SupportScreen(),
       '/support-thread': (context) {
         final args = ModalRoute.of(context)?.settings.arguments as Map?;
-        return SupportThreadScreen(
-          ticketId: args?['id'] as String? ?? '#GP-1024',
-          ticketSubject: args?['subject'] as String? ?? 'Problème paiement',
-          statusLabel: args?['status'] as String? ?? 'En cours',
-        );
+        return SupportThreadScreen(ticketId: args?['ticketId'] as int? ?? 0);
       },
       '/security': (_) => const ChangePasswordScreen(),
     },

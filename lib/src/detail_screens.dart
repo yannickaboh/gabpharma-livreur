@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'core/api_client.dart';
+import 'core/auth_session.dart';
 import 'core/courier_api.dart';
 import 'core/theme.dart';
 import 'courier_shell.dart' show formatFcfa;
@@ -3783,8 +3784,9 @@ Color _notificationToneColor(String tone) => switch (tone) {
 /// Regroupement par jour identique à celui déjà validé pour l'Historique
 /// (`_historyDateLabel`, `courier_shell.dart`) — dupliqué ici car les deux
 /// fichiers sont des librairies Dart distinctes (fonctions privées non
-/// partageables via import).
-String _notifDayLabel(DateTime timestamp) {
+/// partageables via import). Partagé entre Notifications et Support (tous
+/// deux dans ce fichier) plutôt que dupliqué une deuxième fois.
+String _dayGroupLabel(DateTime timestamp) {
   final local = timestamp.toLocal();
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
@@ -3799,7 +3801,7 @@ String _notifDayLabel(DateTime timestamp) {
   return '${local.day} ${months[local.month - 1]} ${local.year}';
 }
 
-String _notifTimeLabel(DateTime timestamp) {
+String _clockTimeLabel(DateTime timestamp) {
   final local = timestamp.toLocal();
   return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
 }
@@ -3882,7 +3884,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     final groups = <String>[];
     for (final item in _items) {
-      final group = _notifDayLabel(item.timestamp);
+      final group = _dayGroupLabel(item.timestamp);
       if (!groups.contains(group)) groups.add(group);
     }
     return Scaffold(
@@ -3962,7 +3964,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       _sectionLabel(group.toUpperCase()),
                       const SizedBox(height: 12),
                       for (final entry in _items.asMap().entries)
-                        if (_notifDayLabel(entry.value.timestamp) == group) ...[
+                        if (_dayGroupLabel(entry.value.timestamp) == group) ...[
                           _NotificationCard(
                             item: entry.value,
                             read: _read.contains(entry.key),
@@ -4074,7 +4076,7 @@ class _NotificationCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          _notifTimeLabel(item.timestamp),
+                          _clockTimeLabel(item.timestamp),
                           style: const TextStyle(color: GabColors.muted, fontSize: 11),
                         ),
                       ],
@@ -4111,25 +4113,67 @@ class _NotificationCard extends StatelessWidget {
   }
 }
 
-enum _TicketStatus { enCours, retard, termine }
-
-class _Ticket {
-  _Ticket({
-    required this.id,
-    required this.title,
-    required this.status,
-    required this.time,
-  });
-  final String id;
-  final String title;
-  _TicketStatus status;
-  String time;
-}
-
 class _SupportCategory {
-  const _SupportCategory(this.label, this.icon);
+  const _SupportCategory(this.code, this.label, this.icon);
+  final String code;
   final String label;
   final IconData icon;
+}
+
+/// Les 3 boutons rapides du mockup correspondent chacun exactement à un code
+/// réel de `SupportTicket.Category` (Livraison→`delivery`, Compte→`account`,
+/// Paiement→`payment` — voir `api_contrat_besoins.md` §8, meilleur alignement
+/// que côté app Patient). Les 4 autres valeurs réelles (`general`/`order`/
+/// `pharmacy`/`other`) n'ont pas d'équivalent dans le mockup et ne sont pas
+/// exposées ici — `GET /mobile/support/categories/` n'est donc pas appelé,
+/// il ne renverrait que les mêmes 7 valeurs déjà connues du modèle Django.
+const _supportQuickCategories = [
+  _SupportCategory('delivery', 'Livraison', Icons.delivery_dining),
+  _SupportCategory('account', 'Compte', Icons.account_circle_outlined),
+  _SupportCategory('payment', 'Paiement', Icons.payments_outlined),
+];
+
+/// `is_sla_overdue` est un indicateur indépendant du statut (`due_at`
+/// dépassé sur un ticket encore ouvert), pas une 6e valeur de statut —
+/// contrairement à l'ancien "Retard" fictif de la démo qui les confondait.
+Color _ticketStatusColor(String status, {required bool isSlaOverdue}) => switch (status) {
+  'resolved' => GabColors.primary,
+  'closed' => GabColors.muted,
+  _ => isSlaOverdue ? GabColors.warning : GabColors.routeBlue,
+};
+
+Future<XFile?> _pickSupportAttachment(BuildContext context) async {
+  final source = await showModalBottomSheet<ImageSource>(
+    context: context,
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const Text('Prendre une photo'),
+            onTap: () => Navigator.pop(context, ImageSource.camera),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('Choisir dans la galerie'),
+            onTap: () => Navigator.pop(context, ImageSource.gallery),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (source == null) return null;
+  return ImagePicker().pickImage(source: source, imageQuality: 85);
+}
+
+String _attachmentContentType(String fileName) {
+  final extension = fileName.split('.').last.toLowerCase();
+  return switch (extension) {
+    'png' => 'image/png',
+    'jpg' || 'jpeg' => 'image/jpeg',
+    _ => 'application/octet-stream',
+  };
 }
 
 class SupportScreen extends StatefulWidget {
@@ -4139,22 +4183,18 @@ class SupportScreen extends StatefulWidget {
 }
 
 class _SupportScreenState extends State<SupportScreen> {
-  static const _categories = [
-    _SupportCategory('Livraison', Icons.delivery_dining),
-    _SupportCategory('Compte', Icons.account_circle_outlined),
-    _SupportCategory('Paiement', Icons.payments_outlined),
-  ];
-
-  final _tickets = <_Ticket>[
-    _Ticket(id: '#GP-84291', title: 'Problème de validation client', status: _TicketStatus.enCours, time: 'Il y a 15 min'),
-    _Ticket(id: '#GP-84110', title: 'Retard sur la zone Akanda', status: _TicketStatus.retard, time: 'Hier, 18:30'),
-    _Ticket(id: '#GP-83902', title: 'Erreur de paiement commission', status: _TicketStatus.enCours, time: '2 oct. 2023'),
-    _Ticket(id: '#GP-83100', title: 'Mise à jour RIB refusée', status: _TicketStatus.termine, time: 'Résolu le 28 sept.'),
-  ];
-
+  final _api = CourierApi.fromSession();
+  List<SupportTicket> _tickets = const [];
+  bool _loading = true;
+  String? _error;
   final _searchController = TextEditingController();
   String _query = '';
-  int _nextTicketNumber = 84350;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   @override
   void dispose() {
@@ -4162,93 +4202,197 @@ class _SupportScreenState extends State<SupportScreen> {
     super.dispose();
   }
 
-  List<_Ticket> get _filtered {
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final tickets = await _api.fetchSupportTickets();
+      if (!mounted) return;
+      setState(() {
+        _tickets = tickets;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
+
+  List<SupportTicket> get _filtered {
     if (_query.trim().isEmpty) return _tickets;
     final q = _query.toLowerCase();
-    return _tickets.where((t) => t.title.toLowerCase().contains(q) || t.id.toLowerCase().contains(q)).toList();
+    return _tickets
+        .where((t) => t.subject.toLowerCase().contains(q) || t.reference.toLowerCase().contains(q))
+        .toList();
   }
 
-  void _openTicket(_Ticket ticket) {
-    Navigator.pushNamed(
-      context,
-      '/support-thread',
-      arguments: {
-        'id': ticket.id,
-        'subject': ticket.title,
-        'status': ticket.status == _TicketStatus.retard ? 'Retard' : 'En cours',
-      },
-    );
+  void _openTicket(SupportTicket ticket) {
+    Navigator.pushNamed(context, '/support-thread', arguments: {'ticketId': ticket.id}).then((_) {
+      if (mounted) _load();
+    });
   }
 
-  Future<void> _createTicket([String? presetCategory]) async {
+  Future<void> _createTicket([String? presetCode]) async {
+    final subjectController = TextEditingController();
     final descriptionController = TextEditingController();
-    var category = presetCategory ?? _categories.first.label;
-    final submitted = await showModalBottomSheet<bool>(
+    var categoryCode = presetCode ?? _supportQuickCategories.first.code;
+    XFile? attachment;
+    var submitting = false;
+    String? error;
+
+    final created = await showModalBottomSheet<SupportTicket>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setSheetState) => Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(sheetContext).viewInsets.bottom),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Nouveau ticket', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 10,
+        builder: (sheetContext, setSheetState) {
+          Future<void> pickAttachment() async {
+            try {
+              final picked = await _pickSupportAttachment(sheetContext);
+              if (picked != null) setSheetState(() => attachment = picked);
+            } catch (_) {
+              setSheetState(() => error = "Impossible d'accéder à l'appareil photo ou à la galerie.");
+            }
+          }
+
+          Future<void> submit() async {
+            final subject = subjectController.text.trim();
+            final description = descriptionController.text.trim();
+            if (subject.isEmpty || description.isEmpty) {
+              setSheetState(() => error = 'Objet et description requis.');
+              return;
+            }
+            setSheetState(() {
+              submitting = true;
+              error = null;
+            });
+            try {
+              List<int>? bytes;
+              String? fileName;
+              String? contentType;
+              if (attachment != null) {
+                bytes = await attachment!.readAsBytes();
+                fileName = attachment!.name;
+                contentType = _attachmentContentType(fileName);
+              }
+              final ticket = await _api.createSupportTicket(
+                subject: subject,
+                category: categoryCode,
+                message: description,
+                attachmentBytes: bytes,
+                attachmentFileName: fileName,
+                attachmentContentType: contentType,
+              );
+              if (sheetContext.mounted) Navigator.pop(sheetContext, ticket);
+            } on ApiException catch (e) {
+              setSheetState(() {
+                submitting = false;
+                error = e.message;
+              });
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(sheetContext).viewInsets.bottom),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final c in _categories)
-                    ChoiceChip(
-                      label: Text(c.label),
-                      selected: category == c.label,
-                      onSelected: (_) => setSheetState(() => category = c.label),
-                      selectedColor: GabColors.primary.withValues(alpha: 0.15),
-                      labelStyle: TextStyle(
-                        color: category == c.label ? GabColors.primary : GabColors.muted,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  const Text('Nouveau ticket', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 10,
+                    children: [
+                      for (final c in _supportQuickCategories)
+                        ChoiceChip(
+                          label: Text(c.label),
+                          selected: categoryCode == c.code,
+                          onSelected: (_) => setSheetState(() => categoryCode = c.code),
+                          selectedColor: GabColors.primary.withValues(alpha: 0.15),
+                          labelStyle: TextStyle(
+                            color: categoryCode == c.code ? GabColors.primary : GabColors.muted,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: subjectController,
+                    decoration: const InputDecoration(
+                      hintText: 'Objet (ex : Retard sur la zone Akanda)',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descriptionController,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      hintText: 'Décrivez votre problème...',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (attachment != null)
+                    Row(
+                      children: [
+                        const Icon(Icons.attach_file, size: 18, color: GabColors.muted),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            attachment!.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () => setSheetState(() => attachment = null),
+                        ),
+                      ],
+                    )
+                  else
+                    TextButton.icon(
+                      onPressed: pickAttachment,
+                      icon: const Icon(Icons.attach_file, size: 18),
+                      label: const Text('Ajouter une photo'),
+                    ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(error!, style: const TextStyle(color: GabColors.danger, fontSize: 12)),
+                  ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: submitting ? null : submit,
+                      child: submitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Envoyer'),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: descriptionController,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText: 'Décrivez votre problème...',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => Navigator.pop(sheetContext, true),
-                  child: const Text('Envoyer'),
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
 
-    if (submitted != true || !mounted) return;
-    setState(() {
-      _tickets.insert(
-        0,
-        _Ticket(
-          id: '#GP-$_nextTicketNumber',
-          title: 'Ticket $category — nouvelle demande',
-          status: _TicketStatus.enCours,
-          time: 'À l’instant',
-        ),
-      );
-      _nextTicketNumber++;
-    });
+    if (created == null || !mounted) return;
+    setState(() => _tickets = [created, ..._tickets]);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Ticket envoyé. Un agent du support va vous répondre.')),
     );
@@ -4256,7 +4400,7 @@ class _SupportScreenState extends State<SupportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeCount = _tickets.where((t) => t.status != _TicketStatus.termine).length;
+    final activeCount = _tickets.where((t) => t.status != 'resolved' && t.status != 'closed').length;
     return Scaffold(
       backgroundColor: GabColors.background,
       appBar: AppBar(
@@ -4305,76 +4449,111 @@ class _SupportScreenState extends State<SupportScreen> {
         label: const Text('Créer un ticket'),
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [
-            const Text('Nouvelle demande', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                for (final c in _categories) ...[
-                  Expanded(
-                    child: _CategoryButton(category: c, onTap: () => _createTicket(c.label)),
-                  ),
-                  if (c != _categories.last) const SizedBox(width: 12),
-                ],
-              ],
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFDCECE3),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (v) => setState(() => _query = v),
-                decoration: const InputDecoration(
-                  filled: false,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  isDense: true,
-                  hintText: 'Rechercher un ticket...',
-                  prefixIcon: Icon(Icons.search, color: GabColors.muted),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Mes tickets ouverts', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: GabColors.primary, borderRadius: BorderRadius.circular(999)),
-                  child: Text(
-                    '$activeCount Actifs',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            if (_filtered.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Center(
-                  child: Text(
-                    'Aucun ticket ne correspond à « $_query ».',
-                    style: const TextStyle(color: GabColors.muted),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.cloud_off, size: 40, color: GabColors.muted),
+                      const SizedBox(height: 12),
+                      Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: GabColors.muted)),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
                   ),
                 ),
               )
-            else
-              for (final ticket in _filtered) ...[
-                _TicketCard(ticket: ticket, onTap: ticket.status == _TicketStatus.termine ? null : () => _openTicket(ticket)),
-                const SizedBox(height: 14),
-              ],
-            const SizedBox(height: 64),
-          ],
-        ),
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  children: [
+                    const Text('Nouvelle demande', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        for (final c in _supportQuickCategories) ...[
+                          Expanded(
+                            child: _CategoryButton(category: c, onTap: () => _createTicket(c.code)),
+                          ),
+                          if (c != _supportQuickCategories.last) const SizedBox(width: 12),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCECE3),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (v) => setState(() => _query = v),
+                        decoration: const InputDecoration(
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          isDense: true,
+                          hintText: 'Rechercher un ticket...',
+                          prefixIcon: Icon(Icons.search, color: GabColors.muted),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Mes tickets ouverts', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(color: GabColors.primary, borderRadius: BorderRadius.circular(999)),
+                          child: Text(
+                            '$activeCount Actifs',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    if (_tickets.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(
+                          child: Text(
+                            'Aucun ticket pour le moment.',
+                            style: TextStyle(color: GabColors.muted),
+                          ),
+                        ),
+                      )
+                    else if (_filtered.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Center(
+                          child: Text(
+                            'Aucun ticket ne correspond à « $_query ».',
+                            style: const TextStyle(color: GabColors.muted),
+                          ),
+                        ),
+                      )
+                    else
+                      for (final ticket in _filtered) ...[
+                        _TicketCard(ticket: ticket, onTap: () => _openTicket(ticket)),
+                        const SizedBox(height: 14),
+                      ],
+                    const SizedBox(height: 64),
+                  ],
+                ),
+              ),
       ),
     );
   }
@@ -4413,17 +4592,15 @@ class _CategoryButton extends StatelessWidget {
 
 class _TicketCard extends StatelessWidget {
   const _TicketCard({required this.ticket, required this.onTap});
-  final _Ticket ticket;
-  final VoidCallback? onTap;
+  final SupportTicket ticket;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final resolved = ticket.status == _TicketStatus.termine;
-    final (borderColor, badgeBg, badgeFg, label) = switch (ticket.status) {
-      _TicketStatus.enCours => (GabColors.primary, GabColors.routeBlue.withValues(alpha: 0.12), GabColors.routeBlue, 'En cours'),
-      _TicketStatus.retard => (GabColors.warning, GabColors.warning.withValues(alpha: 0.15), GabColors.warning, 'Retard'),
-      _TicketStatus.termine => (GabColors.outlineVariant, GabColors.primary.withValues(alpha: 0.12), GabColors.primary, 'Terminé'),
-    };
+    final resolved = ticket.status == 'resolved' || ticket.status == 'closed';
+    final color = _ticketStatusColor(ticket.status, isSlaOverdue: ticket.isSlaOverdue);
+    final activity = ticket.lastActivityAt;
+    final timeLabel = activity == null ? '' : '${_dayGroupLabel(activity)} à ${_clockTimeLabel(activity)}';
 
     return Material(
       color: resolved ? const Color(0xFFCEDED5).withValues(alpha: 0.4) : Colors.white,
@@ -4437,7 +4614,7 @@ class _TicketCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: resolved
                 ? Border.all(color: GabColors.outlineVariant)
-                : Border(left: BorderSide(color: borderColor, width: 4)),
+                : Border(left: BorderSide(color: color, width: 4)),
           ),
           child: Opacity(
             opacity: resolved ? 0.7 : 1,
@@ -4451,17 +4628,20 @@ class _TicketCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(ticket.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                          Text(ticket.subject, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                           const SizedBox(height: 2),
-                          Text('ID: ${ticket.id}', style: const TextStyle(color: GabColors.muted, fontSize: 12)),
+                          Text(
+                            '${ticket.reference} · ${ticket.categoryLabel}',
+                            style: const TextStyle(color: GabColors.muted, fontSize: 12),
+                          ),
                         ],
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(10)),
-                      child: Text(label, style: TextStyle(color: badgeFg, fontWeight: FontWeight.w700, fontSize: 12)),
+                      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                      child: Text(ticket.statusLabel, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12)),
                     ),
                   ],
                 ),
@@ -4469,14 +4649,36 @@ class _TicketCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Icon(resolved ? Icons.check_circle_outline : Icons.schedule, size: 16, color: GabColors.muted),
-                        const SizedBox(width: 6),
-                        Text(ticket.time, style: const TextStyle(color: GabColors.muted, fontSize: 12)),
-                      ],
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Icon(resolved ? Icons.check_circle_outline : Icons.schedule, size: 16, color: GabColors.muted),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              timeLabel,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: GabColors.muted, fontSize: 12),
+                            ),
+                          ),
+                          if (!resolved && ticket.isSlaOverdue) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: GabColors.warning.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'EN RETARD',
+                                style: TextStyle(color: GabColors.warning, fontWeight: FontWeight.w700, fontSize: 10),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                    if (!resolved) const Icon(Icons.chevron_right, color: GabColors.primary),
+                    const Icon(Icons.chevron_right, color: GabColors.primary),
                   ],
                 ),
               ],
@@ -4488,77 +4690,32 @@ class _TicketCard extends StatelessWidget {
   }
 }
 
-class _ChatMessage {
-  _ChatMessage({
-    required this.fromStaff,
-    required this.time,
-    this.text,
-    this.attachmentLabel,
-    this.read = true,
-  });
-  final bool fromStaff;
-  final String time;
-  final String? text;
-  final String? attachmentLabel;
-  final bool read;
-}
-
 class SupportThreadScreen extends StatefulWidget {
-  const SupportThreadScreen({
-    this.ticketId = '#GP-1024',
-    this.ticketSubject = 'Problème paiement',
-    this.statusLabel = 'En cours',
-    super.key,
-  });
-  final String ticketId;
-  final String ticketSubject;
-  final String statusLabel;
+  const SupportThreadScreen({required this.ticketId, super.key});
+  final int ticketId;
 
   @override
   State<SupportThreadScreen> createState() => _SupportThreadScreenState();
 }
 
 class _SupportThreadScreenState extends State<SupportThreadScreen> {
-  late final _messages = <_ChatMessage>[
-    _ChatMessage(
-      fromStaff: true,
-      time: '09:42',
-      text:
-          "Bonjour, je suis Sarah du support technique. J'ai bien reçu votre "
-          'signalement « ${widget.ticketSubject} » (Ticket ${widget.ticketId}). '
-          'Pouvez-vous me donner un peu plus de détails ?',
-    ),
-    _ChatMessage(
-      fromStaff: false,
-      time: '09:45',
-      text:
-          'Bonjour Sarah. Le problème est survenu ce matin pendant ma tournée '
-          "à Libreville. Je vous envoie une capture d'écran pour référence.",
-    ),
-    _ChatMessage(
-      fromStaff: true,
-      time: '09:48',
-      text:
-          'Merci, je vérifie cela dans notre système. Une capture au moment du '
-          'problème nous aiderait à accélérer la résolution.',
-    ),
-    _ChatMessage(
-      fromStaff: false,
-      time: '09:50',
-      attachmentLabel: 'Capture_${widget.ticketId.replaceAll('#', '')}.jpg',
-    ),
-  ];
+  final _api = CourierApi.fromSession();
+  SupportTicket? _ticket;
+  bool _loading = true;
+  String? _error;
+  XFile? _attachment;
+  bool _sending = false;
 
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   final _scrollController = ScrollController();
   bool _composing = false;
-  bool _sentNotice = false;
 
   @override
   void initState() {
     super.initState();
     _focusNode.addListener(() => setState(() {}));
+    _load();
   }
 
   @override
@@ -4567,6 +4724,28 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
     _focusNode.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final ticket = await _api.fetchSupportTicket(widget.ticketId);
+      if (!mounted) return;
+      setState(() {
+        _ticket = ticket;
+        _loading = false;
+      });
+      _scrollToEnd();
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
   }
 
   void _jumpToEnd() {
@@ -4583,44 +4762,103 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
     });
   }
 
-  void _send([String? preset]) {
-    final text = (preset ?? _controller.text).trim();
-    if (text.isEmpty) return;
-    final now = TimeOfDay.now();
-    final time = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-    setState(() {
-      _messages.add(_ChatMessage(fromStaff: false, time: time, text: text, read: false));
-      _controller.clear();
-      _composing = false;
-    });
-    _scrollToEnd();
-    if (!_sentNotice) {
-      _sentNotice = true;
+  Future<void> _pickAttachment() async {
+    try {
+      final picked = await _pickSupportAttachment(context);
+      if (picked != null && mounted) setState(() => _attachment = picked);
+    } catch (_) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Message envoyé. Un agent vous répondra dès que possible.')),
+        const SnackBar(content: Text("Impossible d'accéder à l'appareil photo ou à la galerie.")),
       );
     }
   }
 
-  void _attach() {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Pièce jointe'),
-        content: const Text(
-          'Envoi de fichiers indisponible en démonstration — sera activé une '
-          "fois l'application connectée au stockage sécurisé de l'API.",
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer')),
-        ],
-      ),
-    );
+  Future<void> _send([String? preset]) async {
+    final text = (preset ?? _controller.text).trim();
+    final attachment = _attachment;
+    if (text.isEmpty && attachment == null) return;
+    setState(() => _sending = true);
+    try {
+      List<int>? bytes;
+      String? fileName;
+      String? contentType;
+      if (attachment != null) {
+        bytes = await attachment.readAsBytes();
+        fileName = attachment.name;
+        contentType = _attachmentContentType(fileName);
+      }
+      final ticket = await _api.replySupportTicket(
+        widget.ticketId,
+        body: text.isEmpty ? 'Pièce jointe.' : text,
+        attachmentBytes: bytes,
+        attachmentFileName: fileName,
+        attachmentContentType: contentType,
+      );
+      if (!mounted) return;
+      setState(() {
+        _ticket = ticket;
+        _controller.clear();
+        _attachment = null;
+        _composing = false;
+        _sending = false;
+      });
+      _scrollToEnd();
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = widget.statusLabel == 'Retard' ? GabColors.warning : GabColors.routeBlue;
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final ticket = _ticket;
+    if (_error != null || ticket == null) {
+      return Scaffold(
+        backgroundColor: GabColors.background,
+        appBar: AppBar(
+          backgroundColor: GabColors.background,
+          elevation: 0,
+          title: const Text('Ticket', style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off, size: 40, color: GabColors.muted),
+                const SizedBox(height: 12),
+                Text(
+                  _error ?? 'Ce ticket est introuvable.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: GabColors.muted),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Réessayer')),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final closed = ticket.status == 'resolved' || ticket.status == 'closed';
+    final statusColor = _ticketStatusColor(ticket.status, isSlaOverdue: ticket.isSlaOverdue);
+    final messages = ticket.messages;
+    final myId = AuthSession.instance.currentUser?.id;
+
+    final groups = <String>[];
+    for (final m in messages) {
+      if (m.createdAt == null) continue;
+      final g = _dayGroupLabel(m.createdAt!);
+      if (!groups.contains(g)) groups.add(g);
+    }
+
     return Scaffold(
       backgroundColor: GabColors.background,
       appBar: AppBar(
@@ -4632,10 +4870,14 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Ticket ${widget.ticketId}',
+              'Ticket ${ticket.reference}',
               style: const TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800, fontSize: 17),
             ),
-            Text(widget.ticketSubject, style: const TextStyle(color: GabColors.muted, fontSize: 12)),
+            Text(
+              ticket.subject,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: GabColors.muted, fontSize: 12),
+            ),
           ],
         ),
         actions: [
@@ -4656,40 +4898,81 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               color: statusColor.withValues(alpha: 0.08),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
-                      const SizedBox(width: 8),
-                      Text('Statut : ${widget.statusLabel}', style: TextStyle(color: statusColor, fontWeight: FontWeight.w800, fontSize: 13)),
+                      Row(
+                        children: [
+                          Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Statut : ${ticket.statusLabel}',
+                            style: TextStyle(color: statusColor, fontWeight: FontWeight.w800, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                      if (ticket.lastActivityAt != null)
+                        Text(
+                          'Activité : ${_dayGroupLabel(ticket.lastActivityAt!)} à ${_clockTimeLabel(ticket.lastActivityAt!)}',
+                          style: const TextStyle(color: GabColors.muted, fontSize: 11),
+                        ),
                     ],
                   ),
-                  const Text('Dernière activité : Il y a 2 min', style: TextStyle(color: GabColors.muted, fontSize: 11)),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                children: [
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(color: const Color(0xFFDCECE3), borderRadius: BorderRadius.circular(999)),
-                      child: const Text("Aujourd'hui", style: TextStyle(color: GabColors.muted, fontSize: 12)),
+                  if (closed) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Ce ticket est ${ticket.statusLabel.toLowerCase()}. Vous pouvez encore écrire, mais il ne '
+                      'se rouvre pas automatiquement.',
+                      style: const TextStyle(color: GabColors.muted, fontSize: 11),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  for (final m in _messages) ...[
-                    _ChatBubble(message: m),
-                    const SizedBox(height: 16),
                   ],
                 ],
               ),
             ),
+            Expanded(
+              child: messages.isEmpty
+                  ? const Center(
+                      child: Text('Aucun message pour le moment.', style: TextStyle(color: GabColors.muted)),
+                    )
+                  : ListView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                      children: [
+                        for (final group in groups) ...[
+                          Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(color: const Color(0xFFDCECE3), borderRadius: BorderRadius.circular(999)),
+                              child: Text(group, style: const TextStyle(color: GabColors.muted, fontSize: 12)),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          for (final m in messages)
+                            if (m.createdAt != null && _dayGroupLabel(m.createdAt!) == group) ...[
+                              _ChatBubble(message: m, fromMe: m.authorId != null && m.authorId == myId),
+                              const SizedBox(height: 16),
+                            ],
+                        ],
+                      ],
+                    ),
+            ),
+            if (_attachment != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.attach_file, size: 16, color: GabColors.muted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(_attachment!.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                    ),
+                    IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() => _attachment = null)),
+                  ],
+                ),
+              ),
             if (_composing)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -4709,7 +4992,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     IconButton(
-                      onPressed: _attach,
+                      onPressed: _sending ? null : _pickAttachment,
                       icon: const Icon(Icons.attach_file, color: GabColors.primary),
                     ),
                     Expanded(
@@ -4722,6 +5005,7 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                           focusNode: _focusNode,
                           minLines: 1,
                           maxLines: 4,
+                          enabled: !_sending,
                           onChanged: (v) => setState(() => _composing = _focusNode.hasFocus),
                           onTap: () => setState(() => _composing = true),
                           decoration: const InputDecoration(
@@ -4742,10 +5026,16 @@ class _SupportThreadScreenState extends State<SupportThreadScreen> {
                       shape: const CircleBorder(),
                       child: InkWell(
                         customBorder: const CircleBorder(),
-                        onTap: () => _send(),
-                        child: const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: Icon(Icons.send, color: Colors.white, size: 20),
+                        onTap: _sending ? null : () => _send(),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: _sending
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.send, color: Colors.white, size: 20),
                         ),
                       ),
                     ),
@@ -4785,12 +5075,14 @@ class _QuickReplyChip extends StatelessWidget {
 }
 
 class _ChatBubble extends StatelessWidget {
-  const _ChatBubble({required this.message});
-  final _ChatMessage message;
+  const _ChatBubble({required this.message, required this.fromMe});
+  final TicketMessage message;
+  final bool fromMe;
 
   @override
   Widget build(BuildContext context) {
-    final staff = message.fromStaff;
+    final staff = !fromMe;
+    final time = message.createdAt != null ? _clockTimeLabel(message.createdAt!) : '';
     return Align(
       alignment: staff ? Alignment.centerLeft : Alignment.centerRight,
       child: ConstrainedBox(
@@ -4808,14 +5100,17 @@ class _ChatBubble extends StatelessWidget {
                     child: Icon(Icons.support_agent, size: 16, color: Color(0xFF287243)),
                   ),
                   const SizedBox(width: 8),
-                  const Text('Support Gab’Pharma', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                  Text(
+                    message.authorName.isEmpty ? 'Support Gab’Pharma' : message.authorName,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
                 ],
               ),
               const SizedBox(height: 6),
             ],
-            if (message.attachmentLabel != null)
+            for (final attachment in message.attachments) ...[
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: staff ? Colors.white : GabColors.primary,
                   borderRadius: BorderRadius.only(
@@ -4826,86 +5121,65 @@ class _ChatBubble extends StatelessWidget {
                   ),
                   border: staff ? Border.all(color: GabColors.outlineVariant) : null,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 180,
-                      height: 130,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDCECE3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.image_outlined, color: GabColors.muted, size: 32),
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(color: const Color(0xFFDCECE3), borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.image_outlined, color: GabColors.muted, size: 18),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(6, 8, 6, 2),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            message.attachmentLabel!,
-                            style: TextStyle(
-                              color: staff ? GabColors.ink : Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Icon(
-                            message.read ? Icons.done_all : Icons.check,
-                            size: 14,
-                            color: staff ? GabColors.muted : Colors.white70,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: staff ? Colors.white : GabColors.primary,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(18),
-                    topRight: const Radius.circular(18),
-                    bottomLeft: Radius.circular(staff ? 4 : 18),
-                    bottomRight: Radius.circular(staff ? 18 : 4),
-                  ),
-                  border: staff ? Border.all(color: GabColors.outlineVariant) : null,
-                  boxShadow: staff
-                      ? null
-                      : [BoxShadow(color: GabColors.primary.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      message.text ?? '',
-                      style: TextStyle(color: staff ? GabColors.ink : Colors.white, height: 1.4, fontSize: 14),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          message.time,
-                          style: TextStyle(
-                            color: staff ? GabColors.muted : Colors.white.withValues(alpha: 0.8),
-                            fontSize: 10,
-                          ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        attachment.originalName,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: staff ? GabColors.ink : Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
-                        if (!staff) ...[
-                          const SizedBox(width: 4),
-                          Icon(message.read ? Icons.done_all : Icons.check, size: 13, color: Colors.white.withValues(alpha: 0.9)),
-                        ],
-                      ],
+                      ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(height: 6),
+            ],
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: staff ? Colors.white : GabColors.primary,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: Radius.circular(staff ? 4 : 18),
+                  bottomRight: Radius.circular(staff ? 18 : 4),
+                ),
+                border: staff ? Border.all(color: GabColors.outlineVariant) : null,
+                boxShadow: staff
+                    ? null
+                    : [BoxShadow(color: GabColors.primary.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    message.body,
+                    style: TextStyle(color: staff ? GabColors.ink : Colors.white, height: 1.4, fontSize: 14),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    time,
+                    style: TextStyle(
+                      color: staff ? GabColors.muted : Colors.white.withValues(alpha: 0.8),
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

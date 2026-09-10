@@ -417,6 +417,108 @@ class CourierNotification {
   );
 }
 
+/// Piece jointe d'un message de ticket (`TicketAttachment` cote Django).
+/// Le payload mobile n'expose que le nom de fichier et la date — jamais
+/// d'URL de telechargement (`_attachment_payload`, `apps/api/mobile_shared.py`)
+/// : l'upload est reel mais aucune previsualisation/telechargement n'est
+/// possible depuis l'app, cote livreur comme cote staff via l'API mobile.
+class TicketAttachment {
+  const TicketAttachment({required this.id, required this.originalName, this.createdAt});
+
+  final int id;
+  final String originalName;
+  final DateTime? createdAt;
+
+  factory TicketAttachment.fromJson(Map<String, dynamic> json) => TicketAttachment(
+    id: json['id'] as int,
+    originalName: json['original_name'] as String? ?? '',
+    createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null,
+  );
+}
+
+/// Message d'un ticket (`TicketMessage`). Les notes internes (`is_internal`)
+/// ne sont jamais renvoyees par l'API mobile (`_ticket_payload` filtre deja
+/// cote serveur) — ce champ n'est garde que par coherence avec le payload,
+/// jamais utilise pour filtrer a nouveau cote Flutter.
+class TicketMessage {
+  const TicketMessage({
+    required this.id,
+    required this.authorId,
+    required this.authorName,
+    required this.body,
+    required this.attachments,
+    this.createdAt,
+  });
+
+  final int id;
+  final int? authorId;
+  final String authorName;
+  final String body;
+  final List<TicketAttachment> attachments;
+  final DateTime? createdAt;
+
+  factory TicketMessage.fromJson(Map<String, dynamic> json) => TicketMessage(
+    id: json['id'] as int,
+    authorId: json['author_id'] as int?,
+    authorName: json['author_name'] as String? ?? '',
+    body: json['body'] as String? ?? '',
+    attachments: ((json['attachments'] as List?) ?? [])
+        .map((e) => TicketAttachment.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null,
+  );
+}
+
+/// Ticket de support (`SupportTicket`). `isSlaOverdue` est un indicateur
+/// independant du statut (`due_at` depasse pour un ticket encore ouvert) —
+/// pas une 6e valeur de statut, contrairement a l'ancien "Retard" fictif de
+/// la demo qui melangeait les deux notions.
+class SupportTicket {
+  const SupportTicket({
+    required this.id,
+    required this.reference,
+    required this.subject,
+    required this.category,
+    required this.categoryLabel,
+    required this.status,
+    required this.statusLabel,
+    required this.isSlaOverdue,
+    this.lastActivityAt,
+    this.createdAt,
+    this.messages = const [],
+  });
+
+  final int id;
+  final String reference;
+  final String subject;
+  final String category;
+  final String categoryLabel;
+  final String status;
+  final String statusLabel;
+  final bool isSlaOverdue;
+  final DateTime? lastActivityAt;
+  final DateTime? createdAt;
+  final List<TicketMessage> messages;
+
+  factory SupportTicket.fromJson(Map<String, dynamic> json) => SupportTicket(
+    id: json['id'] as int,
+    reference: json['reference'] as String? ?? '',
+    subject: json['subject'] as String? ?? '',
+    category: json['category'] as String? ?? '',
+    categoryLabel: json['category_label'] as String? ?? '',
+    status: json['status'] as String? ?? '',
+    statusLabel: json['status_label'] as String? ?? '',
+    isSlaOverdue: json['is_sla_overdue'] as bool? ?? false,
+    lastActivityAt: json['last_activity_at'] != null
+        ? DateTime.tryParse(json['last_activity_at'] as String)
+        : null,
+    createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null,
+    messages: ((json['messages'] as List?) ?? [])
+        .map((e) => TicketMessage.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
+}
+
 class PatientAbsenceResult {
   const PatientAbsenceResult({required this.delivery, required this.incident});
   final CourierDelivery delivery;
@@ -640,6 +742,81 @@ class CourierApi {
       'description': description,
     });
     return DeliveryIncident.fromJson(json);
+  }
+
+  /// Tickets du livreur, tries par activite recente (deja fait cote serveur).
+  /// Pagine 20/page cote backend — accumule toutes les pages, meme principe
+  /// que [fetchDeliveryHistory] (un livreur n'a realistement qu'une poignee
+  /// de tickets, pas de "Charger plus" necessaire).
+  Future<List<SupportTicket>> fetchSupportTickets() async {
+    final all = <SupportTicket>[];
+    String path = '/mobile/support/tickets/';
+    while (true) {
+      final json = await _client.getJson(path);
+      final results = (json['results'] as List?) ?? [];
+      all.addAll(results.map((e) => SupportTicket.fromJson(e as Map<String, dynamic>)));
+      final next = json['next'] as String?;
+      if (next == null) break;
+      final page = Uri.parse(next).queryParameters['page'];
+      if (page == null) break;
+      path = '/mobile/support/tickets/?page=$page';
+    }
+    return all;
+  }
+
+  Future<SupportTicket> fetchSupportTicket(int id) async {
+    final json = await _client.getJson('/mobile/support/tickets/$id/');
+    return SupportTicket.fromJson(json);
+  }
+
+  /// `order` (commande liee) volontairement omis : aucun selecteur de course
+  /// dans le mockup de l'ecran 16, et le champ est optionnel cote backend
+  /// (`TicketCreateForm.order`, `required=False`) — Option A, meme principe
+  /// que les autres champs optionnels laisses de cote ailleurs dans ce
+  /// branchement plutot que d'ajouter une UI absente du mockup.
+  Future<SupportTicket> createSupportTicket({
+    required String subject,
+    required String category,
+    required String message,
+    List<int>? attachmentBytes,
+    String? attachmentFileName,
+    String? attachmentContentType,
+  }) async {
+    final json = attachmentBytes == null
+        ? await _client.postJson('/mobile/support/tickets/', {
+            'subject': subject,
+            'category': category,
+            'message': message,
+          })
+        : await _client.postMultipart(
+            '/mobile/support/tickets/',
+            fields: {'subject': subject, 'category': category, 'message': message},
+            fileFieldName: 'attachment',
+            fileBytes: attachmentBytes,
+            fileName: attachmentFileName!,
+            contentType: attachmentContentType!,
+          );
+    return SupportTicket.fromJson(json);
+  }
+
+  Future<SupportTicket> replySupportTicket(
+    int id, {
+    required String body,
+    List<int>? attachmentBytes,
+    String? attachmentFileName,
+    String? attachmentContentType,
+  }) async {
+    final json = attachmentBytes == null
+        ? await _client.postJson('/mobile/support/tickets/$id/reply/', {'body': body})
+        : await _client.postMultipart(
+            '/mobile/support/tickets/$id/reply/',
+            fields: {'body': body},
+            fileFieldName: 'attachment',
+            fileBytes: attachmentBytes,
+            fileName: attachmentFileName!,
+            contentType: attachmentContentType!,
+          );
+    return SupportTicket.fromJson(json);
   }
 
   /// Ping de position ponctuel envoye pendant une course en cours
