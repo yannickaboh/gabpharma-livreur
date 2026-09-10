@@ -5187,6 +5187,136 @@ class _ChatBubble extends StatelessWidget {
   }
 }
 
+/// Modification de l'identité (`PATCH /mobile/profile/`) — absent du mockup
+/// d'origine de l'écran 18 (identité affichée en lecture seule), ajouté sur
+/// demande explicite de l'utilisateur le 10 septembre 2026. Pas de champ
+/// e-mail : `_profile_payload` l'expose mais sa modification exige un
+/// parcours OTP dédié (`/mobile/profile/email-change/...`), hors périmètre
+/// de cette demande. Pas de champ photo non plus : aucun champ avatar
+/// n'existe côté backend (ni Livreur, ni Patient — même contrainte déjà
+/// documentée sur l'icône caméra "indisponible en démonstration").
+class EditProfileScreen extends StatefulWidget {
+  const EditProfileScreen({required this.user, super.key});
+  final AuthUser user;
+
+  @override
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
+}
+
+class _EditProfileScreenState extends State<EditProfileScreen> {
+  final _formKey = GlobalKey<FormState>();
+  late final _firstNameController = TextEditingController(text: widget.user.firstName);
+  late final _lastNameController = TextEditingController(text: widget.user.lastName);
+  late final _phoneController = TextEditingController(text: widget.user.phone);
+  late final _usernameController = TextEditingController(text: widget.user.username);
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneController.dispose();
+    _usernameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _submitting = true);
+    try {
+      final updated = await CourierApi.fromSession().updateProfile(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        username: _usernameController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informations mises à jour.')),
+      );
+      Navigator.pop(context, updated);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: GabColors.background,
+    appBar: AppBar(
+      backgroundColor: GabColors.background,
+      elevation: 0,
+      title: const Text(
+        'Modifier mes informations',
+        style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800, fontSize: 17),
+      ),
+    ),
+    body: SafeArea(
+      child: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            TextFormField(
+              controller: _firstNameController,
+              decoration: const InputDecoration(
+                labelText: 'Prénom',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Prénom requis' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _lastNameController,
+              decoration: const InputDecoration(
+                labelText: 'Nom',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Nom requis' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Téléphone',
+                prefixIcon: Icon(Icons.phone_outlined),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _usernameController,
+              decoration: const InputDecoration(
+                labelText: "Nom d'utilisateur",
+                prefixIcon: Icon(Icons.alternate_email),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "L'adresse e-mail n'est pas modifiable depuis cet écran.",
+              style: TextStyle(color: GabColors.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 28),
+            FilledButton(
+              onPressed: _submitting ? null : _submit,
+              child: _submitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Enregistrer'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
   @override

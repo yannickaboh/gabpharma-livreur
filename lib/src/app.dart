@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'auth_screens.dart';
 import 'core/app_config.dart';
+import 'core/auth_session.dart';
 import 'core/theme.dart';
 import 'courier_shell.dart';
 import 'detail_screens.dart';
@@ -38,6 +39,10 @@ class GabPharmaLivreurApp extends StatelessWidget {
         return SupportThreadScreen(ticketId: args?['ticketId'] as int? ?? 0);
       },
       '/security': (_) => const ChangePasswordScreen(),
+      '/edit-profile': (context) {
+        final args = ModalRoute.of(context)?.settings.arguments as Map?;
+        return EditProfileScreen(user: args?['user'] as AuthUser);
+      },
     },
   );
 }

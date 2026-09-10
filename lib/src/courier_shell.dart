@@ -2112,6 +2112,20 @@ class _CourierProfileState extends State<CourierProfile> {
             title: 'Sécurité & Compte',
             rows: [
               _ProfileRow(
+                icon: Icons.edit_outlined,
+                label: 'Modifier mes informations',
+                onTap: () async {
+                  final updated = await Navigator.pushNamed(
+                    context,
+                    '/edit-profile',
+                    arguments: {'user': user},
+                  );
+                  if (updated is AuthUser && mounted) {
+                    setState(() => _user = updated);
+                  }
+                },
+              ),
+              _ProfileRow(
                 icon: Icons.lock_outline,
                 label: 'Changer mot de passe',
                 onTap: () => Navigator.pushNamed(context, '/security'),

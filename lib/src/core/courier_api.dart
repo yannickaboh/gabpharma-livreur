@@ -601,6 +601,27 @@ class CourierApi {
     return user;
   }
 
+  /// `PATCH /mobile/profile/` — prénom/nom obligatoires côté serveur
+  /// (`ProfileForm`), téléphone/nom d'utilisateur optionnels (déduplication
+  /// et normalisation faites côté Django, erreurs remontées via
+  /// [ApiException.message]).
+  Future<AuthUser> updateProfile({
+    required String firstName,
+    required String lastName,
+    String phone = '',
+    String username = '',
+  }) async {
+    final json = await _client.patchJson('/mobile/profile/', {
+      'first_name': firstName,
+      'last_name': lastName,
+      'phone': phone,
+      'username': username,
+    });
+    final user = AuthUser.fromJson(json['profile'] as Map<String, dynamic>);
+    AuthSession.instance.currentUser = user;
+    return user;
+  }
+
   /// `POST /mobile/profile/password/` — exige le mot de passe actuel
   /// (vérifié côté serveur) en plus des deux saisies du nouveau mot de passe.
   Future<void> changePassword({

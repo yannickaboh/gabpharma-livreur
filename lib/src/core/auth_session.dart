@@ -26,6 +26,7 @@ class AuthUser {
     required this.lastName,
     required this.role,
     required this.status,
+    this.username = '',
   });
 
   final int id;
@@ -35,6 +36,10 @@ class AuthUser {
   final String lastName;
   final String role;
   final String status;
+  // Seul `_profile_payload` (`GET/PATCH /mobile/profile/`) expose ce champ —
+  // absent des réponses login/2FA/`me` (`_public_user`), qui laissent donc
+  // toujours cette valeur à ''.
+  final String username;
 
   String get fullName => [firstName, lastName].where((part) => part.isNotEmpty).join(' ');
 
@@ -53,6 +58,7 @@ class AuthUser {
     lastName: json['last_name'] as String? ?? '',
     role: json['role'] as String? ?? '',
     status: json['status'] as String? ?? '',
+    username: json['username'] as String? ?? '',
   );
 }
 
