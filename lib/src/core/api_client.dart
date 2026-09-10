@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'app_config.dart';
 
@@ -72,31 +73,79 @@ class ApiClient {
   Future<Map<String, dynamic>> patchJson(String path, Map<String, dynamic> body) =>
       _send('PATCH', path, body: body);
 
+  /// Upload `multipart/form-data` (dossier de vérification livreur, écran
+  /// 14) : mêmes champs texte que `fields`, plus un unique fichier sous
+  /// `fileFieldName`. Construit la trame manuellement (pas de package
+  /// `http`/`dio` dans ce projet) en suivant le même principe que `_send`
+  /// pour `Content-Length` : dart:io bascule en `Transfer-Encoding: chunked`
+  /// si la taille n'est pas fixée avant écriture, rejeté par le serveur de
+  /// dev Django.
+  Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    required Map<String, String> fields,
+    required String fileFieldName,
+    required List<int> fileBytes,
+    required String fileName,
+    required String contentType,
+  }) async {
+    final boundary = '----gabpharma-${DateTime.now().microsecondsSinceEpoch}';
+    final body = BytesBuilder();
+    for (final entry in fields.entries) {
+      body.add(utf8.encode(
+        '--$boundary\r\n'
+        'Content-Disposition: form-data; name="${entry.key}"\r\n\r\n'
+        '${entry.value}\r\n',
+      ));
+    }
+    body.add(utf8.encode(
+      '--$boundary\r\n'
+      'Content-Disposition: form-data; name="$fileFieldName"; filename="$fileName"\r\n'
+      'Content-Type: $contentType\r\n\r\n',
+    ));
+    body.add(fileBytes);
+    body.add(utf8.encode('\r\n--$boundary--\r\n'));
+
+    return _sendRaw(
+      'POST',
+      path,
+      contentType: 'multipart/form-data; boundary=$boundary',
+      bytes: body.takeBytes(),
+    );
+  }
+
   Future<Map<String, dynamic>> _send(
     String method,
     String path, {
     Map<String, dynamic>? body,
+    bool allowTokenRefresh = true,
+  }) {
+    final bytes = body != null ? utf8.encode(jsonEncode(body)) : <int>[];
+    return _sendRaw(
+      method,
+      path,
+      contentType: 'application/json',
+      bytes: bytes,
+      allowTokenRefresh: allowTokenRefresh,
+    );
+  }
+
+  Future<Map<String, dynamic>> _sendRaw(
+    String method,
+    String path, {
+    required String contentType,
+    required List<int> bytes,
     bool allowTokenRefresh = true,
   }) async {
     final request = await _httpClient.openUrl(
       method,
       Uri.parse('${AppConfig.apiBaseUrl}$path'),
     );
-    request.headers.contentType = ContentType.json;
+    request.headers.set(HttpHeaders.contentTypeHeader, contentType);
     if (accessToken case final token?) {
       request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
     }
-    if (body != null) {
-      // dart:io defaults to Transfer-Encoding: chunked when the byte length
-      // isn't set explicitly before writing — Django's dev server (wsgiref)
-      // rejects chunked request bodies outright, so the Content-Length must
-      // be fixed up front rather than left to be inferred.
-      final encoded = utf8.encode(jsonEncode(body));
-      request.headers.contentLength = encoded.length;
-      request.add(encoded);
-    } else {
-      request.headers.contentLength = 0;
-    }
+    request.headers.contentLength = bytes.length;
+    request.add(bytes);
 
     final response = await request.close();
     final raw = await utf8.decoder.bind(response).join();
@@ -108,7 +157,13 @@ class ApiClient {
           onRefreshToken != null) {
         final refreshed = await onRefreshToken!.call();
         if (refreshed) {
-          return _send(method, path, body: body, allowTokenRefresh: false);
+          return _sendRaw(
+            method,
+            path,
+            contentType: contentType,
+            bytes: bytes,
+            allowTokenRefresh: false,
+          );
         }
       }
       if (response.statusCode == 401 && accessToken != null) {

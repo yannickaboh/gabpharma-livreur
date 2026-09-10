@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'core/api_client.dart';
 import 'core/courier_api.dart';
@@ -3133,16 +3134,14 @@ class _ZoneMapPainter extends CustomPainter {
   bool shouldRepaint(covariant _ZoneMapPainter oldDelegate) => false;
 }
 
-enum _DocStatus { valide, enAttente, refuse }
-
-typedef _DocInfo = ({
-  String name,
-  IconData thumbnailIcon,
-  Color thumbnailColor,
-  _DocStatus status,
-  String? rejectionReason,
-});
-
+/// Dossier de vérification (écran 14), branché sur `GET/POST
+/// /mobile/courier/verification/...`. Aucun document « Assurance » —
+/// décision actée le 28 août 2026 (`api_contrat_besoins.md` §3.1/§6.3),
+/// `CourierDocument.Category` ne connaît que identité/permis. Les
+/// emplacements requis (`required_slots`) dépendent à la fois du type de
+/// pièce d'identité choisi et du véhicule déclaré côté Django — recto/verso
+/// pour CNI/carte de séjour, une seule page pour un passeport, permis
+/// seulement pour moto/voiture (rien pour vélo/à pied).
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({super.key});
   @override
@@ -3150,37 +3149,45 @@ class DocumentsScreen extends StatefulWidget {
 }
 
 class _DocumentsScreenState extends State<DocumentsScreen> {
-  static const _cni = (
-    name: 'CNI/Passeport',
-    thumbnailIcon: Icons.badge,
-    thumbnailColor: GabColors.primary,
-    status: _DocStatus.valide,
-    rejectionReason: null,
-  );
-  static const _permis = (
-    name: 'Permis de conduire',
-    thumbnailIcon: Icons.directions_car,
-    thumbnailColor: GabColors.routeBlue,
-    status: _DocStatus.enAttente,
-    rejectionReason: null,
-  );
-  static const _assuranceRefused = (
-    name: 'Assurance',
-    thumbnailIcon: Icons.description,
-    thumbnailColor: GabColors.danger,
-    status: _DocStatus.refuse,
-    rejectionReason: 'Refusé - Photo floue',
-  );
-  static const _assurancePending = (
-    name: 'Assurance',
-    thumbnailIcon: Icons.description,
-    thumbnailColor: GabColors.routeBlue,
-    status: _DocStatus.enAttente,
-    rejectionReason: null,
-  );
+  final _api = CourierApi.fromSession();
+  final _picker = ImagePicker();
+  CourierVerification? _verification;
+  bool _loading = true;
+  String? _error;
+  String? _busyKey;
 
-  _DocInfo _assurance = _assuranceRefused;
-  bool _replacing = false;
+  static const _identityTypes = [
+    ('cni', "Carte nationale d'identité"),
+    ('residence_card', 'Carte de séjour'),
+    ('passport', 'Passeport'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final verification = await _api.fetchVerification();
+      if (!mounted) return;
+      setState(() {
+        _verification = verification;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
 
   void _previewDocument(String name) {
     showDialog<void>(
@@ -3201,195 +3208,427 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     );
   }
 
-  Future<void> _replaceDocument() async {
-    if (_replacing) return;
-    setState(() => _replacing = true);
-    await Future<void>.delayed(const Duration(milliseconds: 1000));
-    if (!mounted) return;
-    setState(() {
-      _assurance = _assurancePending;
-      _replacing = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Nouveau document envoyé. Il sera vérifié par le Staff Gab’Pharma.',
-        ),
-      ),
-    );
+  Future<void> _chooseIdentityType(String type) async {
+    setState(() => _busyKey = 'identity-type');
+    try {
+      final verification = await _api.setIdentityDocumentType(type);
+      if (!mounted) return;
+      setState(() {
+        _verification = verification;
+        _busyKey = null;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _busyKey = null);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: GabColors.background,
-    appBar: AppBar(
-      backgroundColor: GabColors.background,
-      elevation: 0,
-      title: const Row(
+  Future<ImageSource?> _askImageSource() => showModalBottomSheet<ImageSource>(
+    context: context,
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.delivery_dining, color: GabColors.primary, size: 26),
-          SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              'Mes Documents',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: GabColors.primary,
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
-              ),
-            ),
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const Text('Prendre une photo'),
+            onTap: () => Navigator.pop(context, ImageSource.camera),
           ),
-        ],
-      ),
-      titleSpacing: 0,
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 16),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.circle, size: 8, color: GabColors.primary),
-              const SizedBox(width: 6),
-              Text(
-                'EN LIGNE',
-                style: TextStyle(
-                  color: GabColors.primary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-    body: SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Profil Livreur',
-                            style: TextStyle(color: GabColors.muted, fontWeight: FontWeight.w600),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Complété à 65%',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.verified_user, color: GabColors.primary),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: const LinearProgressIndicator(
-                    value: 0.65,
-                    minHeight: 10,
-                    backgroundColor: Color(0xFFD7E6DE),
-                    valueColor: AlwaysStoppedAnimation(GabColors.primary),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Validez vos documents pour commencer à recevoir des courses à Libreville.',
-                  style: TextStyle(color: GabColors.muted),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          _DocumentCard(doc: _cni, onPreview: () => _previewDocument(_cni.name)),
-          const SizedBox(height: 14),
-          _DocumentCard(doc: _permis, onPreview: () => _previewDocument(_permis.name)),
-          const SizedBox(height: 14),
-          _DocumentCard(
-            doc: _assurance,
-            onPreview: () => _previewDocument(_assurance.name),
-            onReplace: _replaceDocument,
-            replacing: _replacing,
-          ),
-          const SizedBox(height: 28),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              'Conseils de validation',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Row(
-            children: [
-              Expanded(
-                child: _AdviceCard(
-                  icon: Icons.light_mode_outlined,
-                  title: 'Bon éclairage',
-                  description: 'Évitez les ombres sur le document.',
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _AdviceCard(
-                  icon: Icons.center_focus_weak,
-                  title: 'Mise au point',
-                  description: 'Le texte doit être parfaitement net.',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Gab’Pharma sécurise vos données conformément aux lois de protection '
-            'des données personnelles en vigueur.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: GabColors.muted, fontSize: 12),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('Choisir dans la galerie'),
+            onTap: () => Navigator.pop(context, ImageSource.gallery),
           ),
         ],
       ),
     ),
   );
-}
 
-class _DocumentCard extends StatelessWidget {
-  const _DocumentCard({
-    required this.doc,
-    required this.onPreview,
-    this.onReplace,
-    this.replacing = false,
-  });
-  final _DocInfo doc;
-  final VoidCallback onPreview;
-  final VoidCallback? onReplace;
-  final bool replacing;
+  Future<void> _pickAndUpload(String category, String side) async {
+    final source = await _askImageSource();
+    if (source == null || !mounted) return;
+    XFile? picked;
+    try {
+      picked = await _picker.pickImage(source: source, imageQuality: 85);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Impossible d'accéder à l'appareil photo ou à la galerie.")),
+      );
+      return;
+    }
+    if (picked == null || !mounted) return;
+    final slotKey = '$category|$side';
+    setState(() => _busyKey = slotKey);
+    try {
+      final bytes = await picked.readAsBytes();
+      final extension = picked.name.split('.').last.toLowerCase();
+      final contentType = switch (extension) {
+        'png' => 'image/png',
+        'jpg' || 'jpeg' => 'image/jpeg',
+        _ => 'application/octet-stream',
+      };
+      final verification = await _api.uploadVerificationDocument(
+        category: category,
+        side: side,
+        fileBytes: bytes,
+        fileName: picked.name,
+        contentType: contentType,
+      );
+      if (!mounted) return;
+      setState(() {
+        _verification = verification;
+        _busyKey = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Document envoyé. Il sera vérifié par le Staff Gab’Pharma.')),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _busyKey = null);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  Future<void> _submitDossier() async {
+    setState(() => _busyKey = 'submit');
+    try {
+      final verification = await _api.submitVerificationDossier();
+      if (!mounted) return;
+      setState(() {
+        _verification = verification;
+        _busyKey = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dossier soumis. Le Staff Gab’Pharma va l’examiner.')),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _busyKey = null);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final refused = doc.status == _DocStatus.refuse;
-    final (statusColor, statusLabel, statusIcon) = switch (doc.status) {
-      _DocStatus.valide => (GabColors.primary, 'Validé', Icons.check_circle),
-      _DocStatus.enAttente => (GabColors.routeBlue, 'En attente de vérification', Icons.schedule),
-      _DocStatus.refuse => (GabColors.danger, doc.rejectionReason ?? 'Refusé', Icons.error),
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final verification = _verification;
+    if (_error != null || verification == null) {
+      return Scaffold(
+        backgroundColor: GabColors.background,
+        appBar: AppBar(
+          backgroundColor: GabColors.background,
+          elevation: 0,
+          title: const Text(
+            'Mes Documents',
+            style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.info_outline, size: 40, color: GabColors.muted),
+                const SizedBox(height: 12),
+                Text(
+                  _error ?? 'Dossier introuvable.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: GabColors.muted),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Réessayer'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final locked = verification.status == 'pending_review' || verification.status == 'approved';
+    final canSubmit = verification.isComplete && !locked && _busyKey == null;
+    final (progressColor, progressIcon) = switch (verification.status) {
+      'approved' => (GabColors.primary, Icons.verified_user),
+      'pending_review' => (GabColors.routeBlue, Icons.schedule),
+      'changes_requested' || 'rejected' => (GabColors.danger, Icons.error_outline),
+      _ => (GabColors.muted, Icons.badge_outlined),
     };
+
+    return Scaffold(
+      backgroundColor: GabColors.background,
+      appBar: AppBar(
+        backgroundColor: GabColors.background,
+        elevation: 0,
+        title: const Row(
+          children: [
+            Icon(Icons.delivery_dining, color: GabColors.primary, size: 26),
+            SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                'Mes Documents',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: GabColors.primary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                ),
+              ),
+            ),
+          ],
+        ),
+        titleSpacing: 0,
+      ),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Dossier livreur',
+                                style: TextStyle(color: GabColors.muted, fontWeight: FontWeight.w600),
+                              ),
+                              SizedBox(height: 2),
+                            ],
+                          ),
+                        ),
+                        Icon(progressIcon, color: progressColor),
+                      ],
+                    ),
+                    Text(
+                      '${verification.statusLabel} · ${verification.progressPercent}%',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 14),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: verification.progressPercent / 100,
+                        minHeight: 10,
+                        backgroundColor: const Color(0xFFD7E6DE),
+                        valueColor: AlwaysStoppedAnimation(progressColor),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      switch (verification.status) {
+                        'approved' => 'Votre dossier est validé.',
+                        'pending_review' => "Votre dossier est en cours d'examen par le Staff Gab’Pharma.",
+                        'changes_requested' =>
+                          'Des modifications sont demandées — remplacez les documents refusés ci-dessous.',
+                        _ => 'Complétez et soumettez vos documents pour commencer à recevoir des courses.',
+                      },
+                      style: const TextStyle(color: GabColors.muted),
+                    ),
+                    if (verification.note.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: GabColors.danger.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          verification.note,
+                          style: const TextStyle(color: GabColors.danger, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: GabColors.outlineVariant.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Type de pièce d'identité",
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Détermine les documents à fournir ci-dessous.',
+                      style: TextStyle(color: GabColors.muted, fontSize: 12),
+                    ),
+                    if (locked)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          verification.identityDocumentTypeLabel.isNotEmpty
+                              ? verification.identityDocumentTypeLabel
+                              : 'Non renseigné',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      )
+                    else
+                      RadioGroup<String>(
+                        groupValue: verification.identityDocumentType.isEmpty
+                            ? null
+                            : verification.identityDocumentType,
+                        onChanged: (v) {
+                          if (_busyKey != null || v == null) return;
+                          _chooseIdentityType(v);
+                        },
+                        child: Column(
+                          children: [
+                            for (final (value, label) in _identityTypes)
+                              RadioListTile<String>(
+                                value: value,
+                                title: Text(label),
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                                activeColor: GabColors.primary,
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              if (verification.requiredSlots.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    "Choisissez votre type de pièce d'identité pour voir les documents à fournir.",
+                    style: TextStyle(color: GabColors.muted),
+                  ),
+                )
+              else
+                for (final slot in verification.requiredSlots) ...[
+                  _VerificationSlotCard(
+                    slot: slot,
+                    document: verification.documentFor(slot.category, slot.side),
+                    busy: _busyKey == '${slot.category}|${slot.side}',
+                    locked: locked,
+                    onPreview: () => _previewDocument('${slot.categoryLabel} — ${slot.sideLabel}'),
+                    onUpload: () => _pickAndUpload(slot.category, slot.side),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: canSubmit ? _submitDossier : null,
+                  icon: _busyKey == 'submit'
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.send_outlined),
+                  label: Text(_busyKey == 'submit' ? 'Envoi...' : 'Soumettre mon dossier'),
+                  style: FilledButton.styleFrom(shape: const StadiumBorder(), minimumSize: const Size.fromHeight(56)),
+                ),
+              ),
+              const SizedBox(height: 28),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  'Conseils de validation',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Row(
+                children: [
+                  Expanded(
+                    child: _AdviceCard(
+                      icon: Icons.light_mode_outlined,
+                      title: 'Bon éclairage',
+                      description: 'Évitez les ombres sur le document.',
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: _AdviceCard(
+                      icon: Icons.center_focus_weak,
+                      title: 'Mise au point',
+                      description: 'Le texte doit être parfaitement net.',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Gab’Pharma sécurise vos données conformément aux lois de protection '
+                'des données personnelles en vigueur.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: GabColors.muted, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VerificationSlotCard extends StatelessWidget {
+  const _VerificationSlotCard({
+    required this.slot,
+    required this.document,
+    required this.busy,
+    required this.locked,
+    required this.onPreview,
+    required this.onUpload,
+  });
+
+  final CourierVerificationSlot slot;
+  final CourierVerificationDocument? document;
+  final bool busy;
+  final bool locked;
+  final VoidCallback onPreview;
+  final VoidCallback onUpload;
+
+  @override
+  Widget build(BuildContext context) {
+    final (statusColor, statusText, statusIcon) = switch (document?.status) {
+      'approved' => (GabColors.primary, 'Validé', Icons.check_circle),
+      'pending' => (GabColors.routeBlue, 'En attente de vérification', Icons.schedule),
+      'rejected' => (
+        GabColors.danger,
+        document!.rejectionReason.isNotEmpty ? document!.rejectionReason : 'Refusé',
+        Icons.error,
+      ),
+      _ => (GabColors.muted, 'Aucun document envoyé', Icons.upload_file_outlined),
+    };
+    final rejected = document?.status == 'rejected';
+    final hasFile = document?.hasFile ?? false;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -3397,8 +3636,8 @@ class _DocumentCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: refused ? GabColors.danger.withValues(alpha: 0.4) : GabColors.outlineVariant.withValues(alpha: 0.3),
-          width: refused ? 2 : 1,
+          color: rejected ? GabColors.danger.withValues(alpha: 0.4) : GabColors.outlineVariant.withValues(alpha: 0.3),
+          width: rejected ? 2 : 1,
         ),
       ),
       child: Column(
@@ -3412,16 +3651,12 @@ class _DocumentCard extends StatelessWidget {
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: doc.thumbnailColor.withValues(alpha: 0.12),
+                      color: statusColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(doc.thumbnailIcon, color: doc.thumbnailColor.withValues(alpha: 0.6)),
+                    child: Icon(Icons.badge_outlined, color: statusColor.withValues(alpha: 0.6)),
                   ),
-                  Positioned(
-                    right: 2,
-                    bottom: 2,
-                    child: Icon(statusIcon, size: 16, color: statusColor),
-                  ),
+                  Positioned(right: 2, bottom: 2, child: Icon(statusIcon, size: 16, color: statusColor)),
                 ],
               ),
               const SizedBox(width: 14),
@@ -3429,7 +3664,10 @@ class _DocumentCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(doc.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    Text(
+                      '${slot.categoryLabel} — ${slot.sideLabel}',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                    ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
@@ -3441,52 +3679,46 @@ class _DocumentCard extends StatelessWidget {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            statusLabel,
+                            statusText,
                             style: TextStyle(color: statusColor, fontWeight: FontWeight.w600, fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
+                    if (document?.hasPendingReplacement ?? false)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Text(
+                          'Nouvelle version en attente de vérification',
+                          style: TextStyle(color: GabColors.routeBlue, fontSize: 11),
+                        ),
+                      ),
                   ],
                 ),
               ),
-              if (!refused)
+              if (hasFile)
                 IconButton(
                   onPressed: onPreview,
                   icon: const Icon(Icons.visibility_outlined, color: GabColors.muted),
                 ),
             ],
           ),
-          if (refused) ...[
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: GabColors.danger.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: GabColors.danger.withValues(alpha: 0.15)),
-              ),
-              child: const Text(
-                'Veuillez reprendre la photo. Assurez-vous que tous les textes '
-                'sont lisibles et qu’il n’y a pas de reflet.',
-                style: TextStyle(color: GabColors.danger, fontSize: 13, height: 1.3),
-              ),
-            ),
+          if (!locked) ...[
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onReplace,
-                icon: replacing
+              child: OutlinedButton.icon(
+                onPressed: busy ? null : onUpload,
+                icon: busy
                     ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.add_a_photo_outlined),
-                label: Text(replacing ? 'Envoi...' : 'Remplacer le document'),
-                style: FilledButton.styleFrom(shape: const StadiumBorder()),
+                label: Text(busy ? 'Envoi...' : (hasFile ? 'Remplacer le document' : 'Ajouter le document')),
+                style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
               ),
             ),
           ],

@@ -5,6 +5,8 @@
          documentation/cadrage_suivi_temps_reel_livreur.md cote depot Django. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Prise de photo des documents (écran 14, dossier de vérification livreur) via image_picker. -->
+    <uses-permission android:name="android.permission.CAMERA" />
     <application
         android:label="Gab'Pharma Livreur"
         android:name="${applicationName}"

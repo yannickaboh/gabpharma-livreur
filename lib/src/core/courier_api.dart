@@ -249,6 +249,137 @@ class CourierLedger {
   );
 }
 
+/// Emplacement requis du dossier de vérification (écran 14) — dépend à la
+/// fois du type de pièce d'identité choisi et du véhicule déclaré
+/// (`required_document_slots()` côté Django) : un passeport ne demande
+/// qu'une seule page, une CNI/carte de séjour recto+verso ; un permis n'est
+/// requis que pour moto/voiture (rien pour vélo/à pied).
+class CourierVerificationSlot {
+  const CourierVerificationSlot({
+    required this.category,
+    required this.categoryLabel,
+    required this.side,
+    required this.sideLabel,
+    required this.isComplete,
+  });
+
+  final String category;
+  final String categoryLabel;
+  final String side;
+  final String sideLabel;
+  final bool isComplete;
+
+  factory CourierVerificationSlot.fromJson(Map<String, dynamic> json) => CourierVerificationSlot(
+    category: json['category'] as String? ?? '',
+    categoryLabel: json['category_label'] as String? ?? '',
+    side: json['side'] as String? ?? '',
+    sideLabel: json['side_label'] as String? ?? '',
+    isComplete: json['is_complete'] as bool? ?? false,
+  );
+}
+
+/// Document réellement déposé pour un emplacement. `hasFile`/
+/// `hasPendingReplacement` distincts : un document déjà approuvé peut avoir
+/// une nouvelle version en attente de revue sans que l'ancienne (valide)
+/// soit écrasée avant décision du Staff.
+class CourierVerificationDocument {
+  const CourierVerificationDocument({
+    required this.id,
+    required this.category,
+    required this.side,
+    required this.status,
+    required this.statusLabel,
+    required this.rejectionReason,
+    required this.hasFile,
+    required this.hasPendingReplacement,
+    this.expiresAt,
+    this.submittedAt,
+    this.reviewedAt,
+  });
+
+  final int id;
+  final String category;
+  final String side;
+  final String status;
+  final String statusLabel;
+  final String rejectionReason;
+  final bool hasFile;
+  final bool hasPendingReplacement;
+  final DateTime? expiresAt;
+  final DateTime? submittedAt;
+  final DateTime? reviewedAt;
+
+  factory CourierVerificationDocument.fromJson(Map<String, dynamic> json) => CourierVerificationDocument(
+    id: json['id'] as int,
+    category: json['category'] as String? ?? '',
+    side: json['side'] as String? ?? '',
+    status: json['status'] as String? ?? '',
+    statusLabel: json['status_label'] as String? ?? '',
+    rejectionReason: json['rejection_reason'] as String? ?? '',
+    hasFile: json['has_file'] as bool? ?? false,
+    hasPendingReplacement: json['has_pending_replacement'] as bool? ?? false,
+    expiresAt: json['expires_at'] != null ? DateTime.tryParse(json['expires_at'] as String) : null,
+    submittedAt: json['submitted_at'] != null ? DateTime.tryParse(json['submitted_at'] as String) : null,
+    reviewedAt: json['reviewed_at'] != null ? DateTime.tryParse(json['reviewed_at'] as String) : null,
+  );
+}
+
+/// Dossier de vérification livreur (écran 14). Pas de document « Assurance »
+/// (décision actée, aucune catégorie backend pour lui — voir
+/// `api_contrat_besoins.md` §3.1/§6.3).
+class CourierVerification {
+  const CourierVerification({
+    required this.identityDocumentType,
+    required this.identityDocumentTypeLabel,
+    required this.status,
+    required this.statusLabel,
+    required this.note,
+    required this.isComplete,
+    required this.progressPercent,
+    required this.requiredSlots,
+    required this.documents,
+    this.submittedAt,
+    this.reviewedAt,
+  });
+
+  final String identityDocumentType;
+  final String identityDocumentTypeLabel;
+  final String status;
+  final String statusLabel;
+  final String note;
+  final bool isComplete;
+  final int progressPercent;
+  final List<CourierVerificationSlot> requiredSlots;
+  final List<CourierVerificationDocument> documents;
+  final DateTime? submittedAt;
+  final DateTime? reviewedAt;
+
+  CourierVerificationDocument? documentFor(String category, String side) {
+    for (final doc in documents) {
+      if (doc.category == category && doc.side == side) return doc;
+    }
+    return null;
+  }
+
+  factory CourierVerification.fromJson(Map<String, dynamic> json) => CourierVerification(
+    identityDocumentType: json['identity_document_type'] as String? ?? '',
+    identityDocumentTypeLabel: json['identity_document_type_label'] as String? ?? '',
+    status: json['status'] as String? ?? '',
+    statusLabel: json['status_label'] as String? ?? '',
+    note: json['note'] as String? ?? '',
+    isComplete: json['is_complete'] as bool? ?? false,
+    progressPercent: json['progress_percent'] as int? ?? 0,
+    requiredSlots: ((json['required_slots'] as List?) ?? [])
+        .map((e) => CourierVerificationSlot.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    documents: ((json['documents'] as List?) ?? [])
+        .map((e) => CourierVerificationDocument.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    submittedAt: json['submitted_at'] != null ? DateTime.tryParse(json['submitted_at'] as String) : null,
+    reviewedAt: json['reviewed_at'] != null ? DateTime.tryParse(json['reviewed_at'] as String) : null,
+  );
+}
+
 class PatientAbsenceResult {
   const PatientAbsenceResult({required this.delivery, required this.incident});
   final CourierDelivery delivery;
@@ -334,6 +465,41 @@ class CourierApi {
   Future<CourierLedger> fetchLedger() async {
     final json = await _client.getJson('/mobile/courier/ledger/');
     return CourierLedger.fromJson(json);
+  }
+
+  Future<CourierVerification> fetchVerification() async {
+    final json = await _client.getJson('/mobile/courier/verification/');
+    return CourierVerification.fromJson(json);
+  }
+
+  Future<CourierVerification> setIdentityDocumentType(String identityDocumentType) async {
+    final json = await _client.postJson('/mobile/courier/verification/identity-type/', {
+      'identity_document_type': identityDocumentType,
+    });
+    return CourierVerification.fromJson(json);
+  }
+
+  Future<CourierVerification> uploadVerificationDocument({
+    required String category,
+    required String side,
+    required List<int> fileBytes,
+    required String fileName,
+    required String contentType,
+  }) async {
+    final json = await _client.postMultipart(
+      '/mobile/courier/verification/documents/',
+      fields: {'category': category, 'side': side},
+      fileFieldName: 'file',
+      fileBytes: fileBytes,
+      fileName: fileName,
+      contentType: contentType,
+    );
+    return CourierVerification.fromJson(json);
+  }
+
+  Future<CourierVerification> submitVerificationDossier() async {
+    final json = await _client.postJson('/mobile/courier/verification/submit/');
+    return CourierVerification.fromJson(json);
   }
 
   /// Historique complet du livreur (`delivered`/`returned`/`cancelled`),

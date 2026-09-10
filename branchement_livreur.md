@@ -50,7 +50,7 @@ Aligné sur `api_contrat_besoins.md` §7 :
 6. [x] **Historique** — voir §8 ci-dessous.
 7. [x] **Revenus et ledger** — voir §9 ci-dessous.
 8. [x] **Zones et disponibilité** — voir §7 ci-dessous.
-9. [ ] Documents — backend prêt depuis le 28 août 2026 (voir `api_contrat_besoins.md` §3.1), retirer le document « Assurance » de l'écran au branchement.
+9. [x] **Documents** — voir §11 ci-dessous.
 10. [ ] Notifications — retirer "Document validé"/"Versement reçu" (aucune source backend).
 11. [ ] Centre d'aide, tickets, conversation support.
 12. [ ] Profil et sécurité.
@@ -198,6 +198,29 @@ Point transverse repéré au module 4 (voir ci-dessus), traité en priorité ava
 - Aucun overflow constaté sur l'ensemble de l'écran.
 
 **Non testé en conditions réelles, vérifié par lecture de code uniquement** (aucune pharmacie de démo assignée à un livreur disponible n'avait de coordonnées GPS en base au moment du test, et en créer une par les vrais services aurait exigé de construire une commande complète depuis zéro) : le marker pharmacie lui-même (même construction `Marker` que le marker livreur, déjà prouvé fonctionnel à l'écran) et le calcul numérique de "Distance pharmacie" au statut `assigned` (simple appel `Geolocator.distanceBetween`, API standard). Des coordonnées réelles avaient été temporairement assignées à la pharmacie de démo du compte pour préparer ce test, mais retirées avant d'avoir pu terminer la vérification visuelle sur S8 (session interrompue) — retirées définitivement car ce n'était de toute façon pas une donnée exacte à laisser en base. À revérifier visuellement si l'occasion se présente (ex. une vraie pharmacie avec coordonnées assignée à une course de démo), sans que cela bloque la validation du module : le code des deux chemins (avec/sans coordonnées) est symétrique et le chemin "sans coordonnées" est, lui, bien vérifié en direct.
+
+## 11. Documents (10 septembre 2026)
+
+Écran 14 (`DocumentsScreen`, route `/documents`) — n'était pas branché du tout jusqu'ici (3 cartes fixes CNI/Passeport, Permis, Assurance, statuts et pourcentage de complétion "65%" inventés, "Remplacer le document" simulé par un simple délai). Branché sur `GET/POST /mobile/courier/verification/...` (4 endpoints, prêts côté backend depuis le 28 août 2026 — voir `api_contrat_besoins.md` §3.1).
+
+- **Aucun document « Assurance »** — décision actée le 28 août 2026, confirmée : `CourierDocument.Category` ne connaît que `identity`/`driving_license`, aucune catégorie backend pour l'assurance.
+- **Écart de fond découvert en branchant, qui a changé la structure de l'écran plutôt qu'un simple câblage** : le vrai dossier de vérification n'est pas organisé "par document" (CNI, Permis...) mais **par emplacement** (`required_slots`), dépendant à la fois du **type de pièce d'identité choisi** (`identity_document_type` : `cni`/`residence_card`/`passport`, jamais choisi par défaut) et **du véhicule déclaré** (`vehicle_type` — recto/verso de permis requis seulement pour moto/voiture, rien pour vélo/à pied). Une CNI ou carte de séjour exige recto+verso (2 emplacements), un passeport une seule page. Ce concept de "choix du type de pièce" n'existait pas du tout dans le mockup d'origine — ajouté en tête d'écran (3 boutons radio), condition préalable à l'apparition des emplacements identité.
+- **Nouvelle capacité côté app, absente des deux dépôts Flutter jusqu'ici : sélection/prise de photo réelle et upload `multipart/form-data`.**
+  - Package `image_picker` ajouté (choix retenu : caméra + galerie, pas de support PDF — seul flux réaliste pour une photo de pièce d'identité/permis, aucun autre flux de l'app ne gère de PDF). Permission `CAMERA` ajoutée au manifeste Android.
+  - `ApiClient.postMultipart()` ajouté (`api_client.dart`) : trame `multipart/form-data` construite à la main (pas de package `http`/`dio` dans ce projet), même principe que le `Content-Length` fixé explicitement pour les requêtes JSON. `_send`/`_sendRaw` refactorés pour partager la logique d'authentification/rafraîchissement/erreur entre JSON et multipart.
+  - `CourierVerification`/`CourierVerificationSlot`/`CourierVerificationDocument` ajoutés à `courier_api.dart`, plus `fetchVerification`/`setIdentityDocumentType`/`uploadVerificationDocument`/`submitVerificationDossier`.
+- **Carte par emplacement** (`_VerificationSlotCard`) : statut réel par emplacement (`Aucun document envoyé`/`En attente de vérification`/`Validé`/motif de refus réel), mention honnête "Nouvelle version en attente de vérification" quand une pièce déjà approuvée a un remplacement en cours de revue (`has_pending_replacement`), bouton aperçu affiché uniquement si un fichier existe réellement (`has_file` — un document tout juste envoyé n'a qu'un `pending_file`, pas encore de `file` validé, donc honnêtement rien à prévisualiser).
+- **Dossier verrouillé une fois soumis** (`status` = `pending_review`/`approved`) : sélecteur de type de pièce affiché en texte statique, boutons d'ajout/remplacement masqués sur chaque emplacement — cohérent avec le fait qu'aucune modification n'a de sens pendant que le Staff examine le dossier.
+- Bouton "Soumettre mon dossier" (absent du mockup d'origine, qui n'affichait qu'un statut) ajouté — activé uniquement si `is_complete` (un fichier par emplacement requis) et dossier non verrouillé.
+- Progression, statut et libellé recalculés en direct depuis `progress_percent`/`status_label` réels (plus de "65%" fixe).
+- `flutter analyze` propre sur les 3 fichiers modifiés (`detail_screens.dart`, `courier_api.dart`, `api_client.dart`) — migration vers `RadioGroup` (API remplaçant `RadioListTile.groupValue`/`onChanged`, dépréciés depuis Flutter 3.32) au passage.
+
+**Vérifié de bout en bout sur S8 physique le 10 septembre 2026**, compte `livreur-pharmacie-du-centre@example.ga` ("Serge Ekomy", véhicule moto), dossier de vérification inexistant en base avant le test (`get_or_create_verification` a créé une ligne `draft` fraîche au premier chargement) — cas réaliste d'un livreur qui n'a jamais rien soumis :
+- État initial réel : "Brouillon · 0%", seul l'emplacement "Permis de conduire — Recto" visible (véhicule moto, type de pièce pas encore choisi).
+- Sélection "Carte nationale d'identité" → apparition réelle de "Identité — Recto" (`POST .../identity-type/` confirmé). Sélection "Passeport" (test du recalcul dynamique) → l'emplacement identité passe bien à un seul "Identité — Page d'identité" au lieu de recto+verso, confirmant que `required_document_slots()` est réellement recalculé côté serveur à chaque changement de type.
+- 3 photos réelles prises via l'appareil photo du S8 et envoyées (`POST .../documents/`, `multipart/form-data`) : popup système de permission caméra déclenché et accordé, progression passée en direct de 0 % → 33 % → 100 % au fil des envois, chaque emplacement affichant "En attente de vérification" + "Nouvelle version en attente de vérification" (cohérent avec `has_file=false`/`has_pending_replacement=true` d'un tout premier envoi jamais encore revu par le Staff).
+- Dossier réellement soumis (`POST .../submit/`) : statut passé à "En attente de revue · 100 %" avec message honnête "Votre dossier est en cours d'examen par le Staff Gab'Pharma.", confirmé côté base Django (`CourierVerification.submitted_at` horodaté). Dossier verrouillé ensuite : type de pièce affiché en texte simple ("Passeport"), plus aucun bouton d'ajout/remplacement sur les 3 emplacements.
+- Retour propre vers Profil (bouton retour), aucun crash. Aucun overflow constaté sur l'ensemble du défilement de l'écran, y compris avec les libellés longs des emplacements et les bandeaux de statut.
 
 ## Rappel d'environnement pour reprendre cette session de branchement
 
