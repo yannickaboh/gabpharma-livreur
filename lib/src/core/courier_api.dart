@@ -380,6 +380,43 @@ class CourierVerification {
   );
 }
 
+/// Evenement du flux `GET /mobile/notifications/` (`_courier_notifications`
+/// cote Django) : agrege a la volee sur 3 sources reelles (course
+/// `awaiting_assignment` compatible disponible, changement de statut d'une
+/// course affectee, incident resolu) — jamais persiste cote serveur
+/// (`persistence: "aggregated"`, `unread_count` toujours `null` dans la
+/// reponse), donc aucun id unique par notification et aucun etat lu/non lu
+/// cote backend : la lecture reste entierement locale a l'app.
+class CourierNotification {
+  const CourierNotification({
+    required this.icon,
+    required this.tone,
+    required this.title,
+    required this.description,
+    required this.timestamp,
+    required this.targetType,
+    this.targetId,
+  });
+
+  final String icon;
+  final String tone;
+  final String title;
+  final String description;
+  final DateTime timestamp;
+  final String targetType;
+  final int? targetId;
+
+  factory CourierNotification.fromJson(Map<String, dynamic> json) => CourierNotification(
+    icon: json['icon'] as String? ?? 'notifications',
+    tone: json['tone'] as String? ?? '',
+    title: json['title'] as String? ?? '',
+    description: json['description'] as String? ?? '',
+    timestamp: DateTime.tryParse(json['timestamp'] as String? ?? '') ?? DateTime.now(),
+    targetType: json['target_type'] as String? ?? '',
+    targetId: json['target_id'] as int?,
+  );
+}
+
 class PatientAbsenceResult {
   const PatientAbsenceResult({required this.delivery, required this.incident});
   final CourierDelivery delivery;
@@ -448,6 +485,13 @@ class CourierApi {
   Future<CourierSummary> fetchSummary() async {
     final json = await _client.getJson('/mobile/courier/summary/');
     return CourierSummary.fromJson(json);
+  }
+
+  Future<List<CourierNotification>> fetchNotifications() async {
+    final json = await _client.getJson('/mobile/notifications/');
+    return ((json['notifications'] as List?) ?? [])
+        .map((e) => CourierNotification.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<CourierAvailability> fetchAvailability() async {

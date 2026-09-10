@@ -3754,26 +3754,69 @@ class _AdviceCard extends StatelessWidget {
   );
 }
 
-class _NotifEntry {
-  const _NotifEntry({
-    required this.title,
-    required this.body,
-    required this.time,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBg,
-    this.detailRoute,
-    this.initiallyRead = false,
-  });
-  final String title;
-  final String body;
-  final String time;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-  final String? detailRoute;
-  final bool initiallyRead;
+/// Icone/tone -> rendu Flutter pour un [CourierNotification]. Le backend
+/// n'envoie que 10 valeurs d'icone reelles (`_DELIVERY_STATUS_STYLE` +
+/// `package_2`/`verified` cote `_courier_notifications`) et 4 tons
+/// (amber/green/blue/red, defaut neutre) — mappees sur les couleurs deja
+/// utilisees ailleurs dans l'app (`GabColors.warning`/`primary`/`routeBlue`/
+/// `danger`) plutot que de reinventer une palette de notification.
+const _notificationIcons = <String, IconData>{
+  'package_2': Icons.inventory_2_outlined,
+  'assignment_ind': Icons.assignment_ind,
+  'inventory_2': Icons.inventory_2,
+  'delivery_dining': Icons.delivery_dining,
+  'assignment_return': Icons.assignment_return,
+  'keyboard_return': Icons.keyboard_return,
+  'task_alt': Icons.task_alt,
+  'block': Icons.block,
+  'verified': Icons.verified,
+};
+
+Color _notificationToneColor(String tone) => switch (tone) {
+  'amber' => GabColors.warning,
+  'green' => GabColors.primary,
+  'blue' => GabColors.routeBlue,
+  'red' => GabColors.danger,
+  _ => GabColors.muted,
+};
+
+/// Regroupement par jour identique à celui déjà validé pour l'Historique
+/// (`_historyDateLabel`, `courier_shell.dart`) — dupliqué ici car les deux
+/// fichiers sont des librairies Dart distinctes (fonctions privées non
+/// partageables via import).
+String _notifDayLabel(DateTime timestamp) {
+  final local = timestamp.toLocal();
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(local.year, local.month, local.day);
+  final diff = today.difference(day).inDays;
+  if (diff == 0) return "Aujourd'hui";
+  if (diff == 1) return 'Hier';
+  const months = [
+    'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+    'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+  ];
+  return '${local.day} ${months[local.month - 1]} ${local.year}';
 }
+
+String _notifTimeLabel(DateTime timestamp) {
+  final local = timestamp.toLocal();
+  return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+}
+
+/// Seule catégorie de notification avec un écran de détail honnête à ce jour :
+/// une course `awaiting_assignment` compatible ("Course #N disponible",
+/// voir `_courier_notifications` côté Django) mène à `/available-detail`,
+/// déjà capable de retrouver la course dans la liste des courses disponibles.
+/// Les autres notifications `delivery` (changement de statut, incident résolu)
+/// n'ont aucune route de détail générique par id côté app (`/active-delivery`
+/// ne représente que LA course active actuelle, pas un id arbitraire) — pas
+/// de lien "Voir les détails" pour elles plutôt qu'une navigation trompeuse.
+bool _isAvailableCourseNotification(CourierNotification item) =>
+    item.targetType == 'delivery' &&
+    item.targetId != null &&
+    item.title.startsWith('Course #') &&
+    item.title.endsWith('disponible');
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -3782,59 +3825,44 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  static const _today = <_NotifEntry>[
-    _NotifEntry(
-      title: 'Nouvelle course disponible',
-      body:
-          'Une commande de 1 500 FCFA est disponible à la Pharmacie de '
-          "l'Étoile vers Akanda - Angondjé.",
-      time: 'Il y a 5 min',
-      icon: Icons.delivery_dining,
-      iconColor: GabColors.primary,
-      iconBg: GabColors.primary,
-      detailRoute: '/available-detail',
-    ),
-    _NotifEntry(
-      title: 'Affectation confirmée',
-      body:
-          'La course GP-9830 a été officiellement assignée à votre profil. '
-          'Préparez-vous au départ.',
-      time: 'Il y a 45 min',
-      icon: Icons.task_alt,
-      iconColor: GabColors.routeBlue,
-      iconBg: GabColors.routeBlue,
-    ),
-  ];
+  final _api = CourierApi.fromSession();
+  List<CourierNotification> _items = const [];
+  bool _loading = true;
+  String? _error;
 
-  static const _yesterday = <_NotifEntry>[
-    _NotifEntry(
-      title: 'Document validé',
-      body: 'Votre CNI/Passeport a été vérifié et validé par le Staff Gab’Pharma.',
-      time: 'Hier, 14:20',
-      icon: Icons.description_outlined,
-      iconColor: GabColors.muted,
-      iconBg: GabColors.muted,
-      initiallyRead: true,
-    ),
-    _NotifEntry(
-      title: 'Versement reçu',
-      body:
-          'Un paiement Airtel Money de 2 200 FCFA a été confirmé pour la '
-          'course GP-9744.',
-      time: 'Hier, 09:15',
-      icon: Icons.payments_outlined,
-      iconColor: GabColors.secondary,
-      iconBg: GabColors.secondary,
-      initiallyRead: true,
-    ),
-  ];
+  /// Etat "lu" purement local : le flux `/mobile/notifications/` est agrege
+  /// a la volee cote serveur (`persistence: "aggregated"`, `unread_count`
+  /// toujours `null`, aucun id stable par entree) — rien a synchroniser,
+  /// reinitialise a chaque rechargement comme le reste de l'ecran.
+  final Set<int> _read = {};
 
-  late final Set<int> _read = {
-    for (var i = 0; i < _today.length; i++)
-      if (_today[i].initiallyRead) i,
-    for (var i = 0; i < _yesterday.length; i++)
-      if (_yesterday[i].initiallyRead) _today.length + i,
-  };
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final items = await _api.fetchNotifications();
+      if (!mounted) return;
+      setState(() {
+        _items = items;
+        _read.clear();
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
 
   void _markRead(int index) {
     if (_read.contains(index)) return;
@@ -3842,71 +3870,117 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _markAllRead() {
-    setState(() => _read.addAll(List.generate(_today.length + _yesterday.length, (i) => i)));
+    setState(() => _read.addAll(List.generate(_items.length, (i) => i)));
+  }
+
+  void _openDetail(int index, CourierNotification item) {
+    _markRead(index);
+    Navigator.pushNamed(context, '/available-detail', arguments: {'deliveryId': item.targetId});
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: GabColors.background,
-    appBar: AppBar(
+  Widget build(BuildContext context) {
+    final groups = <String>[];
+    for (final item in _items) {
+      final group = _notifDayLabel(item.timestamp);
+      if (!groups.contains(group)) groups.add(group);
+    }
+    return Scaffold(
       backgroundColor: GabColors.background,
-      elevation: 0,
-      title: const Row(
-        children: [
-          Icon(Icons.notifications_outlined, color: GabColors.primary, size: 26),
-          SizedBox(width: 10),
-          Text(
-            'Notifications',
-            style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800, fontSize: 18),
-          ),
-        ],
-      ),
-      titleSpacing: 0,
-      actions: [
-        TextButton.icon(
-          onPressed: _markAllRead,
-          icon: const Icon(Icons.done_all, size: 18, color: GabColors.primary),
-          label: const Text('TOUT LIRE'),
-          style: TextButton.styleFrom(foregroundColor: GabColors.primary),
+      appBar: AppBar(
+        backgroundColor: GabColors.background,
+        elevation: 0,
+        title: const Row(
+          children: [
+            Icon(Icons.notifications_outlined, color: GabColors.primary, size: 26),
+            SizedBox(width: 10),
+            Text(
+              'Notifications',
+              style: TextStyle(color: GabColors.primary, fontWeight: FontWeight.w800, fontSize: 18),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-      ],
-    ),
-    body: SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          _sectionLabel("AUJOURD'HUI"),
-          const SizedBox(height: 12),
-          for (var i = 0; i < _today.length; i++) ...[
-            _NotificationCard(
-              entry: _today[i],
-              read: _read.contains(i),
-              onTap: () => _markRead(i),
-              onDetail: _today[i].detailRoute == null
-                  ? null
-                  : () {
-                      _markRead(i);
-                      Navigator.pushNamed(context, _today[i].detailRoute!);
-                    },
+        titleSpacing: 0,
+        actions: [
+          if (_items.isNotEmpty)
+            TextButton.icon(
+              onPressed: _markAllRead,
+              icon: const Icon(Icons.done_all, size: 18, color: GabColors.primary),
+              label: const Text('TOUT LIRE'),
+              style: TextButton.styleFrom(foregroundColor: GabColors.primary),
             ),
-            const SizedBox(height: 12),
-          ],
-          const SizedBox(height: 16),
-          _sectionLabel('HIER'),
-          const SizedBox(height: 12),
-          for (var i = 0; i < _yesterday.length; i++) ...[
-            _NotificationCard(
-              entry: _yesterday[i],
-              read: _read.contains(_today.length + i),
-              onTap: () => _markRead(_today.length + i),
-            ),
-            const SizedBox(height: 12),
-          ],
+          const SizedBox(width: 8),
         ],
       ),
-    ),
-  );
+      body: SafeArea(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.cloud_off, size: 40, color: GabColors.muted),
+                      const SizedBox(height: 12),
+                      Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: GabColors.muted)),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : _items.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.notifications_off_outlined, size: 40, color: GabColors.muted),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Aucune notification pour le moment.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: GabColors.muted),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  children: [
+                    for (final group in groups) ...[
+                      _sectionLabel(group.toUpperCase()),
+                      const SizedBox(height: 12),
+                      for (final entry in _items.asMap().entries)
+                        if (_notifDayLabel(entry.value.timestamp) == group) ...[
+                          _NotificationCard(
+                            item: entry.value,
+                            read: _read.contains(entry.key),
+                            onTap: () => _markRead(entry.key),
+                            onDetail: _isAvailableCourseNotification(entry.value)
+                                ? () => _openDetail(entry.key, entry.value)
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      const SizedBox(height: 4),
+                    ],
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
 
   Widget _sectionLabel(String text) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -3924,119 +3998,117 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
 class _NotificationCard extends StatelessWidget {
   const _NotificationCard({
-    required this.entry,
+    required this.item,
     required this.read,
     required this.onTap,
     this.onDetail,
   });
-  final _NotifEntry entry;
+  final CourierNotification item;
   final bool read;
   final VoidCallback onTap;
   final VoidCallback? onDetail;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.transparent,
-    child: InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: read ? const Color(0xFFE2F1E9) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: read
-              ? null
-              : Border(left: BorderSide(color: entry.iconColor, width: 4)),
-          boxShadow: read
-              ? null
-              : [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: entry.iconBg.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(entry.icon, color: entry.iconColor),
-                ),
-                if (!read)
-                  Positioned(
-                    top: -1,
-                    right: -1,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: GabColors.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) {
+    final color = _notificationToneColor(item.tone);
+    final icon = _notificationIcons[item.icon] ?? Icons.notifications;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: read ? const Color(0xFFE2F1E9) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: read ? null : Border(left: BorderSide(color: color, width: 4)),
+            boxShadow: read
+                ? null
+                : [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          entry.title,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: color),
+                  ),
+                  if (!read)
+                    Positioned(
+                      top: -1,
+                      right: -1,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: GabColors.primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        entry.time,
-                        style: const TextStyle(color: GabColors.muted, fontSize: 11),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    entry.body,
-                    style: const TextStyle(color: GabColors.muted, fontSize: 13, height: 1.35),
-                  ),
-                  if (onDetail != null) ...[
-                    const SizedBox(height: 8),
-                    InkWell(
-                      onTap: onDetail,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Voir les détails',
-                            style: TextStyle(
-                              color: entry.iconColor,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                          ),
-                          Icon(Icons.chevron_right, size: 16, color: entry.iconColor),
-                        ],
-                      ),
                     ),
-                  ],
                 ],
               ),
-            ),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _notifTimeLabel(item.timestamp),
+                          style: const TextStyle(color: GabColors.muted, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.description,
+                      style: const TextStyle(color: GabColors.muted, fontSize: 13, height: 1.35),
+                    ),
+                    if (onDetail != null) ...[
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: onDetail,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Voir les détails',
+                              style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                            Icon(Icons.chevron_right, size: 16, color: color),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 enum _TicketStatus { enCours, retard, termine }
