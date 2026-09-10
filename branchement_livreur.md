@@ -53,7 +53,7 @@ Aligné sur `api_contrat_besoins.md` §7 :
 9. [x] **Documents** — voir §11 ci-dessous.
 10. [x] **Notifications** — voir §12 ci-dessous.
 11. [x] **Centre d'aide, tickets, conversation support** — voir §13 ci-dessous.
-12. [ ] Profil et sécurité.
+12. [ ] Profil et sécurité — dernier module restant. `GET/PATCH /mobile/profile/` + `POST /mobile/profile/password/`, tous deux déjà prêts côté Django. Voir `CLAUDE.md` section "Prochaine étape" pour l'état exact des écrans Flutter concernés (`CourierProfile`, `ChangePasswordScreen`).
 
 ## 3. Accueil, Courses disponibles, Détail course (3 septembre 2026)
 
