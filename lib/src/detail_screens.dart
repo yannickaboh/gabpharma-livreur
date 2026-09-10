@@ -5214,13 +5214,23 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _submitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-    setState(() => _submitting = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Mot de passe mis à jour pour cette session de démonstration.')),
-    );
-    Navigator.pop(context);
+    try {
+      await CourierApi.fromSession().changePassword(
+        currentPassword: _currentController.text,
+        newPassword1: _newController.text,
+        newPassword2: _confirmController.text,
+      );
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mot de passe mis à jour.')),
+      );
+      Navigator.pop(context);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 
   @override

@@ -589,6 +589,32 @@ class CourierApi {
     return CourierSummary.fromJson(json);
   }
 
+  /// Profil livreur (`_profile_payload` côté Django) : réutilise [AuthUser]
+  /// (déjà mis à jour ici, comme après un login/2FA) — le payload profil est
+  /// un sur-ensemble compatible (ajoute `username`/`full_name`/labels, jamais
+  /// consommés par [AuthUser.fromJson]). Pas de champ `vehicle_type` ici,
+  /// voir [fetchAvailability] pour `vehicleTypeLabel`.
+  Future<AuthUser> fetchProfile() async {
+    final json = await _client.getJson('/mobile/profile/');
+    final user = AuthUser.fromJson(json['profile'] as Map<String, dynamic>);
+    AuthSession.instance.currentUser = user;
+    return user;
+  }
+
+  /// `POST /mobile/profile/password/` — exige le mot de passe actuel
+  /// (vérifié côté serveur) en plus des deux saisies du nouveau mot de passe.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword1,
+    required String newPassword2,
+  }) async {
+    await _client.postJson('/mobile/profile/password/', {
+      'current_password': currentPassword,
+      'new_password1': newPassword1,
+      'new_password2': newPassword2,
+    });
+  }
+
   Future<List<CourierNotification>> fetchNotifications() async {
     final json = await _client.getJson('/mobile/notifications/');
     return ((json['notifications'] as List?) ?? [])

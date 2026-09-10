@@ -1957,7 +1957,7 @@ class _LedgerEntryCard extends StatelessWidget {
   }
 }
 
-class CourierProfile extends StatelessWidget {
+class CourierProfile extends StatefulWidget {
   const CourierProfile({
     required this.online,
     required this.onOnlineChanged,
@@ -1967,6 +1967,48 @@ class CourierProfile extends StatelessWidget {
   final bool online;
   final ValueChanged<bool> onOnlineChanged;
   final Future<void> Function() onRefreshAvailability;
+
+  @override
+  State<CourierProfile> createState() => _CourierProfileState();
+}
+
+class _CourierProfileState extends State<CourierProfile> {
+  final _api = CourierApi.fromSession();
+  AuthUser? _user;
+  String _vehicleTypeLabel = '';
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final results = await Future.wait([
+        _api.fetchProfile(),
+        _api.fetchAvailability(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _user = results[0] as AuthUser;
+        _vehicleTypeLabel = (results[1] as CourierAvailability).vehicleTypeLabel;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    }
+  }
 
   void _showInfoDialog(BuildContext context, String title, String message) {
     showDialog<void>(
@@ -1984,168 +2026,187 @@ class CourierProfile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      _HomeHeader(online: online, onToggle: () => onOnlineChanged(!online), title: 'Mon Profil'),
+      _HomeHeader(
+        online: widget.online,
+        onToggle: () => widget.onOnlineChanged(!widget.online),
+        title: 'Mon Profil',
+      ),
       Expanded(
-        child: SafeArea(
-          top: false,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-            children: [
-              Center(
-                child: Column(
-                  children: [
-                    Stack(
-                      children: [
-                        Container(
-                          width: 112,
-                          height: 112,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: GabColors.primary,
-                            border: Border.all(color: Colors.white, width: 4),
-                            boxShadow: [
-                              BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4)),
-                            ],
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'JM',
-                              style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 2,
-                          right: 2,
-                          child: Material(
-                            color: GabColors.primary,
-                            shape: const CircleBorder(),
-                            child: InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap: () => _showInfoDialog(
-                                context,
-                                'Photo de profil',
-                                'Changement de photo indisponible en démonstration — sera activé une fois l’application connectée au stockage sécurisé de l’API.',
-                              ),
-                              child: const Padding(
-                                padding: EdgeInsets.all(8),
-                                child: Icon(Icons.photo_camera, color: Colors.white, size: 18),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Junior Moussavou',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text('+241 077 12 34 56', style: TextStyle(color: GabColors.muted)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 28),
-              _ProfileSection(
-                title: 'Sécurité & Compte',
-                rows: [
-                  _ProfileRow(
-                    icon: Icons.lock_outline,
-                    label: 'Changer mot de passe',
-                    onTap: () => Navigator.pushNamed(context, '/security'),
-                  ),
-                  _ProfileRow(
-                    icon: Icons.two_wheeler_outlined,
-                    label: 'Véhicule',
-                    subtitle: 'Moto · GA-204-LB',
-                    onTap: () => _showInfoDialog(
-                      context,
-                      'Véhicule',
-                      'Moto immatriculée GA-204-LB. La modification du véhicule affecté se '
-                          'fait auprès du Staff Gab’Pharma, pas directement dans l’application.',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _ProfileSection(
-                title: 'Opérations',
-                rows: [
-                  _ProfileRow(
-                    icon: Icons.map_outlined,
-                    label: 'Zones et disponibilité',
-                    onTap: () async {
-                      await Navigator.pushNamed(context, '/availability');
-                      onRefreshAvailability();
-                    },
-                  ),
-                  _ProfileRow(
-                    icon: Icons.badge_outlined,
-                    label: 'Documents',
-                    onTap: () => Navigator.pushNamed(context, '/documents'),
-                  ),
-                  _ProfileRow(
-                    icon: Icons.notifications_outlined,
-                    label: 'Notifications',
-                    onTap: () => Navigator.pushNamed(context, '/notifications'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _ProfileSection(
-                title: 'Informations',
-                rows: [
-                  _ProfileRow(
-                    icon: Icons.privacy_tip_outlined,
-                    label: 'Confidentialité',
-                    onTap: () => _showInfoDialog(
-                      context,
-                      'Confidentialité',
-                      'Gab’Pharma collecte uniquement les données nécessaires à la gestion de vos '
-                          'courses (position pendant une livraison active, historique, documents '
-                          'administratifs). Ces données sont traitées conformément aux lois de '
-                          'protection des données personnelles en vigueur au Gabon.',
-                    ),
-                  ),
-                  _ProfileRow(
-                    icon: Icons.support_agent,
-                    label: 'Support',
-                    onTap: () => Navigator.pushNamed(context, '/support'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () async {
-                    await AuthSession.instance.logout();
-                    if (!context.mounted) return;
-                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-                  },
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Déconnexion'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFDAD6),
-                    foregroundColor: const Color(0xFF93000A),
-                    elevation: 0,
-                    shape: const StadiumBorder(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Version 1.0.4',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: GabColors.muted, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? _HomeErrorState(message: _error!, onRetry: _load)
+            : _buildContent(context),
       ),
     ],
   );
+
+  Widget _buildContent(BuildContext context) {
+    final user = _user!;
+    final vehicleLabel = _vehicleTypeLabel.isEmpty ? 'Non renseigné' : _vehicleTypeLabel;
+    return SafeArea(
+      top: false,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+        children: [
+          Center(
+            child: Column(
+              children: [
+                Stack(
+                  children: [
+                    Container(
+                      width: 112,
+                      height: 112,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: GabColors.primary,
+                        border: Border.all(color: Colors.white, width: 4),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4)),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          user.initials,
+                          style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 2,
+                      right: 2,
+                      child: Material(
+                        color: GabColors.primary,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () => _showInfoDialog(
+                            context,
+                            'Photo de profil',
+                            'Changement de photo indisponible en démonstration — sera activé une fois l’application connectée au stockage sécurisé de l’API.',
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Icon(Icons.photo_camera, color: Colors.white, size: 18),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  user.fullName.isEmpty ? user.email : user.fullName,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  user.phone.isEmpty ? user.email : user.phone,
+                  style: const TextStyle(color: GabColors.muted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+          _ProfileSection(
+            title: 'Sécurité & Compte',
+            rows: [
+              _ProfileRow(
+                icon: Icons.lock_outline,
+                label: 'Changer mot de passe',
+                onTap: () => Navigator.pushNamed(context, '/security'),
+              ),
+              _ProfileRow(
+                icon: Icons.two_wheeler_outlined,
+                label: 'Véhicule',
+                subtitle: vehicleLabel,
+                onTap: () => _showInfoDialog(
+                  context,
+                  'Véhicule',
+                  'Type de véhicule enregistré : $vehicleLabel. Gab’Pharma ne suit pas de numéro '
+                      'd’immatriculation dans l’application — la modification du véhicule affecté se '
+                      'fait auprès du Staff Gab’Pharma, pas directement dans l’application.',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _ProfileSection(
+            title: 'Opérations',
+            rows: [
+              _ProfileRow(
+                icon: Icons.map_outlined,
+                label: 'Zones et disponibilité',
+                onTap: () async {
+                  await Navigator.pushNamed(context, '/availability');
+                  widget.onRefreshAvailability();
+                  _load();
+                },
+              ),
+              _ProfileRow(
+                icon: Icons.badge_outlined,
+                label: 'Documents',
+                onTap: () => Navigator.pushNamed(context, '/documents'),
+              ),
+              _ProfileRow(
+                icon: Icons.notifications_outlined,
+                label: 'Notifications',
+                onTap: () => Navigator.pushNamed(context, '/notifications'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _ProfileSection(
+            title: 'Informations',
+            rows: [
+              _ProfileRow(
+                icon: Icons.privacy_tip_outlined,
+                label: 'Confidentialité',
+                onTap: () => _showInfoDialog(
+                  context,
+                  'Confidentialité',
+                  'Gab’Pharma collecte uniquement les données nécessaires à la gestion de vos '
+                      'courses (position pendant une livraison active, historique, documents '
+                      'administratifs). Ces données sont traitées conformément aux lois de '
+                      'protection des données personnelles en vigueur au Gabon.',
+                ),
+              ),
+              _ProfileRow(
+                icon: Icons.support_agent,
+                label: 'Support',
+                onTap: () => Navigator.pushNamed(context, '/support'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () async {
+                await AuthSession.instance.logout();
+                if (!context.mounted) return;
+                Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+              },
+              icon: const Icon(Icons.logout),
+              label: const Text('Déconnexion'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFFDAD6),
+                foregroundColor: const Color(0xFF93000A),
+                elevation: 0,
+                shape: const StadiumBorder(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Version 1.0.4',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: GabColors.muted, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ProfileRow {
